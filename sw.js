@@ -1,5 +1,5 @@
 // Офлайн-кэш. Меняешь код — подними версию, и обновление приедет само.
-const VERSION = 'kbd-v2';
+const VERSION = 'kbd-v3';
 const ASSETS = [
   './',
   './index.html',
@@ -16,10 +16,14 @@ const ASSETS = [
   './icons/icon-512.png'
 ];
 
+// cache: 'reload' — берём файлы с сервера, а не из обычного кэша браузера,
+// иначе в офлайн-копию может попасть уже устаревшая версия.
+const freshRequest = (url) => new Request(url, { cache: 'reload' });
+
 self.addEventListener('install', (e) => {
   e.waitUntil(
     caches.open(VERSION)
-      .then(c => c.addAll(ASSETS))
+      .then(c => c.addAll(ASSETS.map(freshRequest)))
       .then(() => self.skipWaiting())
       .catch(() => self.skipWaiting())
   );
@@ -58,13 +62,16 @@ self.addEventListener('fetch', (e) => {
   // обновление приезжает к следующему запуску.
   e.respondWith(
     caches.match(req).then(hit => {
-      const fresh = fetch(req).then(res => {
+      // no-cache — спрашиваем сервер, изменился ли файл, а не верим сроку годности
+      const fresh = fetch(new Request(req, { cache: 'no-cache' })).then(res => {
         if (res.ok) {
           const copy = res.clone();
-          caches.open(VERSION).then(c => c.put(req, copy));
+          return caches.open(VERSION).then(c => c.put(req, copy)).then(() => res);
         }
         return res;
       }).catch(() => hit || new Response('', { status: 504, statusText: 'offline' }));
+      // держим фоновое обновление живым, иначе воркер может уснуть на полпути
+      e.waitUntil(fresh.catch(() => {}));
       return hit || fresh;
     })
   );
