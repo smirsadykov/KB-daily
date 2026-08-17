@@ -1,10 +1,13 @@
 // Офлайн-кэш. Меняешь код — подними версию, и обновление приедет само.
-const VERSION = 'kbd-v3';
+const VERSION = 'kbd-v4';
+// Версия в адресе файла — единственный способ гарантированно пробить
+// старый кэш на уже установленном приложении. Меняешь css или app.js —
+// подними ?v= здесь и в index.html.
 const ASSETS = [
   './',
   './index.html',
-  './css/styles.css',
-  './js/app.js',
+  './css/styles.css?v=2',
+  './js/app.js?v=2',
   './js/data.js',
   './js/store.js',
   './js/progression.js',
@@ -46,7 +49,7 @@ self.addEventListener('fetch', (e) => {
   // HTML — сначала сеть, чтобы не залипать на старой версии
   if (req.mode === 'navigate') {
     e.respondWith(
-      fetch(req)
+      fetch(new Request(req, { cache: 'no-cache' }))
         .then(res => {
           const copy = res.clone();
           caches.open(VERSION).then(c => c.put(req, copy));

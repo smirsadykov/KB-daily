@@ -890,8 +890,29 @@ timer.configure({ sound: S.settings.sound, vibrate: S.settings.vibrate, keepAwak
 ensureToday();
 render();
 
+// ── Обновление приложения ────────────────────────────────────────────────────
+// Установленное приложение должно само подхватывать новую версию,
+// иначе оно навсегда остаётся на той, что закэширована при первом запуске.
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch(() => {});
+  let reloading = false;
+
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    // перезагружаемся только если приложение уже работало под старым воркером,
+    // иначе первый в жизни запуск уйдёт в цикл перезагрузок
+    if (reloading || !sessionStorage.getItem('kbd.hadController')) return;
+    reloading = true;
+    location.reload();
+  });
+
+  window.addEventListener('load', async () => {
+    if (navigator.serviceWorker.controller) sessionStorage.setItem('kbd.hadController', '1');
+    try {
+      const reg = await navigator.serviceWorker.register('./sw.js');
+      reg.update().catch(() => {});
+      // и проверяем ещё раз каждый раз, когда возвращаешься в приложение
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') reg.update().catch(() => {});
+      });
+    } catch (e) { /* без офлайна тоже работает */ }
   });
 }
