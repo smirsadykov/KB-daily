@@ -1124,6 +1124,7 @@ timer.onUpdate = () => { updateRestbar(); if (tab === 'timer') updateTimerScreen
 timer.configure({ sound: S.settings.sound, vibrate: S.settings.vibrate, keepAwake: S.settings.wakeLock });
 ensureToday();
 render();
+window.__kbdBooted = true;
 
 // ── Обновление приложения ────────────────────────────────────────────────────
 // Установленное приложение должно само подхватывать новую версию,
