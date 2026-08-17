@@ -111,6 +111,187 @@ function schemeText(kind, step, item) {
   return '';
 }
 
+// ── Бюджет времени ───────────────────────────────────────────────────────────
+// Реальная тренировка почти целиком состоит из отдыха: чистой работы в 38-минутной
+// сессии минут девять. Поэтому укладываемся в бюджет по порядку уступок,
+// от самых дешёвых к самым дорогим:
+//   1. пары (пока отдыхает одно движение, работает другое) — не стоит ничего
+//   2. сокращение отдыха до разумного минимума
+//   3. урезание подсобки
+//   4. и только в последнюю очередь — объём основного движения
+
+const SET_WORK = (item, s) => {
+  if (item.kind === 'ballistic') return (s.reps || 0) * 2.8 + 8;
+  if (item.kind === 'ladder') return (s.reps || 0) * 4 + 10;   // заброс + стойка + жим
+  if (item.kind === 'reps') return (s.reps || 0) * 3.5 + 8;
+  if (item.kind === 'time') return (s.sec || 0) + 8;
+  if (item.kind === 'emom') return item.emom || 60;
+  return 30;
+};
+
+// Ниже этих значений отдых перестаёт быть отдыхом: жим превращается
+// в выносливость, а махи — в кашу по технике.
+const REST_FLOOR = { ballistic: 30, ladder: 45, reps: 45, time: 30, emom: 0 };
+
+export function estimateSeconds(plan) {
+  let sec = plan.warmup.length ? 240 : 0;
+  const paired = new Set();
+  for (const p of plan.pairs || []) { paired.add(p.a); paired.add(p.b); }
+
+  for (const p of plan.pairs || []) {
+    for (const idx of [p.a, p.b]) {
+      const it = plan.items[idx];
+      sec += it.sets.reduce((t, s) => t + SET_WORK(it, s), 0) + it.sets.length * p.rest;
+    }
+  }
+  plan.items.forEach((it, i) => {
+    if (paired.has(i)) return;
+    if (it.emom) { sec += it.sets.length * it.emom; return; }
+    // подходы на левую и правую идут парой — отдыхаешь один раз на обе
+    const sides = it.kind !== 'ballistic' && it.sets.some(s => s.side);
+    it.sets.forEach((s, k) => {
+      sec += SET_WORK(it, s);
+      if (k < it.sets.length - 1 && (!sides || k % 2 === 1)) sec += it.rest || 45;
+    });
+  });
+  return Math.round(sec);
+}
+
+export function estimateMinutes(plan) {
+  return Math.max(5, Math.round(estimateSeconds(plan) / 60));
+}
+
+// Два движения можно ставить в пару, если они не мешают друг другу:
+// разные паттерны, не переноска и не готовый комплекс.
+function canPair(a, b) {
+  if (!a || !b) return false;
+  if (a.kind === 'emom' || b.kind === 'emom') return false;
+  if (a.kind === 'time' || b.kind === 'time') return false;
+  const pa = EXERCISES[a.exId]?.pattern, pb = EXERCISES[b.exId]?.pattern;
+  return pa && pb && pa !== pb;
+}
+
+// Чередование подходов: на каждый подход первого движения приходится
+// столько подходов второго, чтобы оба закончились одновременно.
+function interleave(aLen, bLen) {
+  const order = [];
+  let done = 0;
+  for (let k = 0; k < aLen; k++) {
+    order.push({ side: 'a', idx: k });
+    const target = Math.round(((k + 1) / aLen) * bLen);
+    while (done < target) { order.push({ side: 'b', idx: done }); done++; }
+  }
+  while (done < bLen) { order.push({ side: 'b', idx: done }); done++; }
+  return order;
+}
+
+function dropRound(item) {
+  // снимаем не отдельный подход, а целый круг: лестницу целиком
+  // или пару подходов на левую и правую, иначе стороны разъедутся
+  if (item.kind === 'ladder' && item.rungs) {
+    const perLadder = item.rungs.length * (item.sets.some(s => s.side) ? 2 : 1);
+    if (item.sets.length - perLadder < perLadder) return false;
+    item.sets = item.sets.slice(0, item.sets.length - perLadder);
+    item.ladders = Math.max(1, (item.ladders || 1) - 1);
+    return true;
+  }
+  const chunk = item.sets.some(s => s.side) ? 2 : 1;
+  const min = item.kind === 'ballistic' ? 4 : 2;
+  if (item.sets.length - chunk < min) return false;
+  item.sets = item.sets.slice(0, item.sets.length - chunk);
+  return true;
+}
+
+// Подпись вида «8 × 10» пересчитывается по фактическим подходам
+function refreshScheme(item) {
+  const sides = item.sets.some(s => s.side) ? 2 : 1;
+  const first = item.sets[0];
+  if (!first) { item.scheme = '—'; return; }
+  if (item.kind === 'ballistic') item.scheme = `${item.sets.length} × ${first.reps}`;
+  else if (item.kind === 'ladder') item.scheme = `${item.ladders} ${ladderWord(item.ladders)} ${(item.rungs || []).join('-')}`;
+  else if (item.kind === 'reps') item.scheme = `${item.sets.length / sides} × ${first.reps}`;
+  else if (item.kind === 'time') item.scheme = `${item.sets.length / sides} × ${first.sec} сек`;
+  else if (item.kind === 'emom') item.scheme = `${item.sets.length} кругов`;
+}
+
+export function fitToBudget(plan, budgetMin) {
+  plan.trims = [];
+  plan.pairs = plan.pairs || [];
+  if (!budgetMin) { plan.estimate = estimateMinutes(plan); return plan; }
+  const budget = budgetMin * 60;
+  const over = () => estimateSeconds(plan) > budget;
+
+  // 1. Пары — самая дешёвая экономия, объём не страдает вообще
+  if (over()) {
+    for (let i = 0; i < plan.items.length && over(); i++) {
+      for (let j = i + 1; j < plan.items.length; j++) {
+        const used = plan.pairs.some(p => p.a === i || p.b === i || p.a === j || p.b === j);
+        if (used || !canPair(plan.items[i], plan.items[j])) continue;
+        plan.pairs.push({ a: i, b: j, rest: 25, order: interleave(plan.items[i].sets.length, plan.items[j].sets.length) });
+        plan.trims.push(`${plan.items[i].name.toLowerCase()} и ${plan.items[j].name.toLowerCase()} идут в паре`);
+        break;
+      }
+    }
+  }
+
+  // 2. Отдых — до пола, ниже которого движение меняет смысл
+  let guard = 0;
+  while (over() && guard++ < 40) {
+    let changed = false;
+    for (const p of plan.pairs) {
+      if (p.rest > 15) { p.rest -= 5; changed = true; }
+    }
+    plan.items.forEach((it, i) => {
+      if (plan.pairs.some(p => p.a === i || p.b === i)) return;
+      const floor = REST_FLOOR[it.kind] ?? 45;
+      if ((it.rest || 0) > floor) { it.rest = Math.max(floor, it.rest - 15); changed = true; }
+    });
+    if (!changed) break;
+  }
+  const shortened = plan.items.some(it => it.rest !== undefined);
+  if (shortened && plan.trims.length === 0 && over() === false) { /* отдых уже урезан ниже */ }
+
+  // 3. Подсобка — режем с конца, там переноски и тяги
+  guard = 0;
+  while (over() && guard++ < 20) {
+    let changed = false;
+    for (let i = plan.items.length - 1; i > 0; i--) {
+      if (plan.pairs.some(p => p.a === i || p.b === i)) continue;
+      if (dropRound(plan.items[i])) {
+        changed = true;
+        if (!plan.trims.some(t => t.includes(plan.items[i].name.toLowerCase() + ':')))
+          plan.trims.push(`${plan.items[i].name.toLowerCase()}: меньше подходов`);
+        break;
+      }
+    }
+    if (!changed) break;
+  }
+
+  // 4. Основное движение — только если иначе никак
+  guard = 0;
+  while (over() && guard++ < 20) {
+    let changed = false;
+    for (let i = 0; i < plan.items.length; i++) {
+      if (dropRound(plan.items[i])) {
+        changed = true;
+        const name = plan.items[i].name.toLowerCase();
+        if (!plan.trims.some(t => t.startsWith(name + ':'))) plan.trims.push(`${name}: срезал объём, времени не хватало`);
+        break;
+      }
+    }
+    if (!changed) break;
+  }
+
+  // Пересобираем подписи и чередование после всех урезаний,
+  // иначе на экране останутся числа из исходного плана
+  for (const it of plan.items) refreshScheme(it);
+  for (const p of plan.pairs) p.order = interleave(plan.items[p.a].sets.length, plan.items[p.b].sets.length);
+
+  plan.estimate = estimateMinutes(plan);
+  plan.overBudget = plan.estimate > budgetMin;
+  return plan;
+}
+
 export function planFor(state, dateISO = todayISO(), readiness = null, dayOverride = null) {
   const prog = PROGRAMS[state.settings.programId];
   const di = dayOverride != null ? dayOverride : dayIndex(state, dateISO);
@@ -145,7 +326,7 @@ export function planFor(state, dateISO = todayISO(), readiness = null, dayOverri
     items.push(item);
   }
 
-  return {
+  const plan = {
     date: dateISO,
     programId: state.settings.programId,
     programName: prog.name,
@@ -163,8 +344,12 @@ export function planFor(state, dateISO = todayISO(), readiness = null, dayOverri
     warmup: state.settings.warmup ? WARMUP : [],
     cooldown: state.settings.cooldown ? COOLDOWN : [],
     items,
+    pairs: [],
+    trims: [],
     isRest: day.focus === 'rest'
   };
+
+  return plan.isRest ? plan : fitToBudget(plan, state.settings.timeBudget);
 }
 
 // Описание конкретной ступени словами

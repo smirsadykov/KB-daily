@@ -35,6 +35,7 @@ export function defaultState() {
       bells,
       programId: 'daily_min',
       startDate: todayISO(),
+      timeBudget: 25,
       warmup: true,
       cooldown: true,
       tgu: false,

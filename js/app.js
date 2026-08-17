@@ -2,7 +2,8 @@ import { EXERCISES, PROGRAMS, TRACKS, WAVE, RPE_HINTS } from './data.js';
 import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON } from './store.js';
 import {
   planFor, applySession, summarizeItem, readinessMult, readinessLabel,
-  waveIndex, isDeload, acwr, streak, sessionLoad, tonnage, nextStepText, stepText, dayIndex
+  waveIndex, isDeload, acwr, streak, sessionLoad, tonnage, nextStepText, stepText, dayIndex,
+  estimateMinutes
 } from './progression.js';
 import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js';
 import { timer, fmt, unlockAudio } from './timer.js';
@@ -195,32 +196,30 @@ function viewReadiness(preview, wave) {
   </div>
 
   <h3>План на сегодня · примерно ${est} мин</h3>
-  ${withR.items.map(it => `
+  ${withR.trims?.length ? `
+    <div class="card tight">
+      <span class="pill ${withR.overBudget ? 'warn' : 'ok'}">${withR.overBudget ? 'не влезает' : 'уложил в ' + S.settings.timeBudget + ' мин'}</span>
+      <div class="muted small mt mb0">${withR.trims.map(h).join(' · ')}</div>
+      ${withR.overBudget ? `<div class="muted small">Короче уже не выходит без потери смысла. Либо ${est} минут, либо подними бюджет в настройках.</div>` : ''}
+    </div>` : ''}
+  ${withR.items.map((it, i) => {
+    const pair = withR.pairs?.find(p => p.b === i);
+    if (pair) return '';
+    const partner = withR.pairs?.find(p => p.a === i);
+    return `
     <div class="card tight">
       <div class="row between">
-        <div class="grow"><div class="ex-name">${h(it.name)}</div>
-        <div class="ex-meta">${h(it.scheme)} · ${it.weight} кг${it.label ? ' · ' + h(it.label) : ''}</div></div>
-        <span class="pill">шаг ${it.step + 1}/${it.stepTotal}</span>
+        <div class="grow"><div class="ex-name">${h(it.name)}${partner ? ' + ' + h(withR.items[partner.b].name.toLowerCase()) : ''}</div>
+        <div class="ex-meta">${h(it.scheme)}${partner ? ' и ' + h(withR.items[partner.b].scheme) : ''} · ${it.weight} кг${partner ? ' / ' + withR.items[partner.b].weight + ' кг' : ''}</div></div>
+        <span class="pill${partner ? ' accent' : ''}">${partner ? 'в паре' : 'шаг ' + (it.step + 1) + '/' + it.stepTotal}</span>
       </div>
-    </div>`).join('')}
+    </div>`;
+  }).join('')}
 
   <button class="btn" data-act="begin">Начать тренировку</button>
   ${mult <= 0.7 ? '<p class="muted small center mt">Плохой день — не повод пропускать. Объём я уже урезал, сделай что получится.</p>' : ''}`;
 }
 
-function estimateMinutes(plan) {
-  let sec = plan.warmup.length ? 240 : 0;
-  for (const it of plan.items) {
-    // если подходы идут парами на левую и правую, отдыхаешь один раз на пару
-    const paired = it.kind !== 'ballistic' && it.sets.some(s => s.side);
-    it.sets.forEach((s, i) => {
-      sec += s.sec || (s.reps || 1) * 3.5;
-      if (it.emom) sec += it.emom;
-      else if (!paired || i % 2 === 1) sec += it.rest || 45;
-    });
-  }
-  return Math.max(5, Math.round(sec / 60));
-}
 
 function viewSession(plan) {
   const totalSets = plan.items.reduce((a, i) => a + i.sets.length, 0);
@@ -242,7 +241,8 @@ function viewSession(plan) {
     <ul class="cues">${plan.warmup.map(w => `<li>${h(EXERCISES[w.ex].name)} — ${w.reps}${w.note ? ' ' + h(w.note) : ''}</li>`).join('')}</ul>
   </details>` : ''}
 
-  ${plan.items.map((it, i) => viewExercise(it, i)).join('')}
+  ${(plan.pairs || []).map(p => viewPair(plan, p)).join('')}
+  ${plan.items.map((it, i) => (plan.pairs || []).some(p => p.a === i || p.b === i) ? '' : viewExercise(it, i)).join('')}
 
   ${plan.cooldown.length ? `
   <details class="card tight tips">
@@ -252,6 +252,42 @@ function viewSession(plan) {
 
   <button class="btn" data-act="finish">Завершить тренировку</button>
   <button class="btn line mt" data-act="abort">Отменить и вернуться</button>`;
+}
+
+// Парный блок: подходы двух движений идут вперемешку.
+// Пока работает одно, отдыхает другое — отсюда и экономия времени.
+function viewPair(plan, p) {
+  const a = plan.items[p.a], b = plan.items[p.b];
+  const all = [...a.sets, ...b.sets];
+  const done = all.filter(s => s.done).length;
+  let round = 0;
+  return `
+  <div class="card">
+    <div class="ex-head">
+      <div class="grow">
+        <div class="ex-name">${h(a.name)} + ${h(b.name.toLowerCase())}</div>
+        <div class="ex-meta">чередуешь подходы · пауза ${p.rest} сек · ${a.weight} кг / ${b.weight} кг</div>
+      </div>
+      <span class="pill ${done === all.length ? 'ok' : 'accent'}">${done}/${all.length}</span>
+    </div>
+    <p class="muted small">Пока работает одно движение, второе отдыхает. Поэтому пауза короткая — но каждое упражнение всё равно получает свой полный отдых.</p>
+    <div class="sets">
+      ${p.order.map(o => {
+        const isA = o.side === 'a';
+        const it = isA ? a : b;
+        const idx = isA ? p.a : p.b;
+        const s = it.sets[o.idx];
+        if (!s) return '';
+        if (isA) round++;
+        return `${isA ? `<div class="muted small" style="margin-top:6px">Круг ${round}</div>` : ''}
+          ${viewSet(it, s, idx, o.idx, EXERCISES[it.exId].short)}`;
+      }).join('')}
+    </div>
+    <details class="tips">
+      <summary>Как делать правильно</summary>
+      <ul class="cues">${[a, b].map(x => `<li><b>${h(EXERCISES[x.exId].short)}:</b> ${h((EXERCISES[x.exId].cues || [])[0] || '')}</li>`).join('')}</ul>
+    </details>
+  </div>`;
 }
 
 function viewExercise(it, i) {
@@ -277,11 +313,11 @@ function viewExercise(it, i) {
   </div>`;
 }
 
-function viewSet(it, s, i, j) {
+function viewSet(it, s, i, j, exLabel) {
   const isTime = it.kind === 'time';
   const title = isTime
     ? `${s.sec} сек`
-    : s.complex ? '1 круг' : `${s.actualReps ?? s.reps} ${plural(s.actualReps ?? s.reps, 'повтор', 'повтора', 'повторов')}`;
+    : s.complex ? '1 круг' : `${exLabel ? exLabel + ' · ' : ''}${s.actualReps ?? s.reps} ${plural(s.actualReps ?? s.reps, 'повтор', 'повтора', 'повторов')}`;
   const sub = [s.side ? `<span class="side-${s.side}">${sideText(s.side)}</span>` : '', `${s.weight} кг`, s.rung ? `ступень ${s.rung}` : '']
     .filter(Boolean).join(' · ');
   const btn = s.done ? '✓ есть' : isTime ? `▶ ${s.sec}с` : 'Готово';
@@ -682,6 +718,14 @@ function viewSettings() {
       <div class="muted small mt">${h(p.desc)}</div>
     </div>`).join('')}
 
+  <h3>Сколько есть времени</h3>
+  <div class="card">
+    <div class="chips">
+      ${[15, 20, 25, 30, 45, 0].map(m => `<button class="chip ${S.settings.timeBudget === m ? 'on' : ''}" data-act="budget" data-v="${m}">${m ? m + ' мин' : 'без лимита'}</button>`).join('')}
+    </div>
+    <p class="muted small mt mb0">Приложение уложит тренировку в это время. Сначала поставит движения в пары, потом сократит отдых, потом урежет подсобку — и только в последнюю очередь тронет основной объём. Что именно оно сделало, будет написано в плане дня.</p>
+  </div>
+
   <h3>Уровень</h3>
   <div class="card">
     <div class="row between">
@@ -823,10 +867,14 @@ const actions = {
     if (s.done) { s.actualReps = s.actualReps ?? s.reps; s.ts = Date.now(); }
     save();
     render();
-    if (s.done && S.settings.autoRest && it.rest && !it.emom) {
-      const last = it.sets.every(x => x.done);
-      if (!last) startRest(it.rest);
-    }
+    if (!s.done || !S.settings.autoRest || it.emom) return;
+    // в паре пауза короткая: отдых этому движению даст следующее упражнение
+    const pair = (S.today.plan.pairs || []).find(p => p.a === i || p.b === i);
+    const rest = pair ? pair.rest : it.rest;
+    const allDone = pair
+      ? [...S.today.plan.items[pair.a].sets, ...S.today.plan.items[pair.b].sets].every(x => x.done)
+      : it.sets.every(x => x.done);
+    if (rest && !allDone) startRest(rest);
   },
   'set-time'(el) {
     const i = +el.dataset.i, j = +el.dataset.j;
@@ -965,6 +1013,11 @@ const actions = {
     closeSheet(); render(); toast('Удалил');
   },
   // ── Тест кондиций ──
+  budget(el) {
+    update(s => { s.settings.timeBudget = +el.dataset.v; s.today = null; });
+    render();
+    toast(+el.dataset.v ? `Уложусь в ${el.dataset.v} минут` : 'Лимит снят');
+  },
   'test-open'() { S.testDraft = defaultTestDraft(); save(); tab = 'test'; render(); },
   'test-exit'() { tab = 'today'; render(); },
   'test-next'() { const d = testDraft(); d.i = Math.min(d.i + 1, TEST_ORDER.length - 1); save(); render(); },
