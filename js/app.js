@@ -2,8 +2,9 @@ import { EXERCISES, PROGRAMS, TRACKS, WAVE, RPE_HINTS } from './data.js';
 import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON } from './store.js';
 import {
   planFor, applySession, summarizeItem, readinessMult, readinessLabel,
-  waveIndex, isDeload, acwr, streak, sessionLoad, tonnage, nextStepText, dayIndex
+  waveIndex, isDeload, acwr, streak, sessionLoad, tonnage, nextStepText, stepText, dayIndex
 } from './progression.js';
+import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js';
 import { timer, fmt, unlockAudio } from './timer.js';
 import { barChart, gauge } from './charts.js';
 
@@ -44,6 +45,7 @@ function render() {
   const screen = $('#screen');
   if (!S.onboarded) { screen.innerHTML = viewOnboarding(); setTop('Настроим под тебя', ''); return; }
   if (tab === 'today') { screen.innerHTML = viewToday(); }
+  if (tab === 'test') { screen.innerHTML = viewTest(); }
   if (tab === 'timer') { screen.innerHTML = viewTimer(); }
   if (tab === 'history') { screen.innerHTML = viewHistory(); }
   if (tab === 'progress') { screen.innerHTML = viewProgress(); }
@@ -115,8 +117,19 @@ function viewToday() {
   if (S.today) return viewSession(S.today.plan);
 
   const preview = planFor(S, date, null);
-  if (preview.isRest) return viewRestDay(preview);
-  return viewReadiness(preview, wave);
+  const banner = !(S.tests || []).length ? `
+    <div class="card tight tap" role="button" tabindex="0" data-act="test-open" style="border-color:var(--accent)">
+      <div class="row between">
+        <div class="grow">
+          <div class="ex-name">Пройти тест кондиций</div>
+          <div class="muted small">25 минут — и приложение начнёт с твоего уровня, а не с нуля</div>
+        </div>
+        <span class="pill accent">→</span>
+      </div>
+    </div>` : '';
+
+  if (preview.isRest) return banner + viewRestDay(preview);
+  return banner + viewReadiness(preview, wave);
 }
 
 function viewRestDay(plan) {
@@ -281,6 +294,182 @@ function viewSet(it, s, i, j) {
     </div>
     <button class="set-do" data-act="${isTime && !s.done ? 'set-time' : 'set-done'}" data-i="${i}" data-j="${j}">${btn}</button>
   </div>`;
+}
+
+// ── Экран «Тест кондиций» ────────────────────────────────────────────────────
+function defaultTestDraft() {
+  const b = S.settings.bells;
+  const ballistic = S.progress.swing_1h?.weight ?? b[Math.min(1, b.length - 1)];
+  const grind = S.progress.clean_press?.weight ?? b[0];
+  const heavy = S.progress.carry_farmer?.weight ?? b[b.length - 1];
+  return {
+    i: 0,
+    press: { bell: grind, reps: 5 },
+    swing: { bell: ballistic, rpe: 7, techniqueHeld: true },
+    squat: { bell: grind, reps: 10 },
+    carry: { bell: heavy, sec: 45 }
+  };
+}
+
+function testDraft() {
+  if (!S.testDraft) S.testDraft = defaultTestDraft();
+  return S.testDraft;
+}
+
+function bellPicker(key, current) {
+  return `<div class="chips">${S.settings.bells.map(b =>
+    `<button class="chip ${b === current ? 'on' : ''}" data-act="test-bell" data-k="${key}" data-v="${b}">${b} кг</button>`).join('')}</div>`;
+}
+
+function counter(key, field, value, min, max, unit, stepBy = 1) {
+  return `<div class="row" style="gap:10px;justify-content:center;margin:14px 0">
+      <button class="btn ghost sm" style="width:56px" data-act="test-num" data-k="${key}" data-f="${field}" data-d="${-stepBy}" data-min="${min}" data-max="${max}">−</button>
+      <div style="min-width:120px;text-align:center">
+        <div style="font-size:38px;font-weight:800;letter-spacing:-.03em">${value}</div>
+        <div class="muted small">${unit}</div>
+      </div>
+      <button class="btn ghost sm" style="width:56px" data-act="test-num" data-k="${key}" data-f="${field}" data-d="${stepBy}" data-min="${min}" data-max="${max}">+</button>
+    </div>`;
+}
+
+function viewTest() {
+  const d = testDraft();
+  const stage = TEST_ORDER[d.i];
+  setTop('Тест кондиций', `шаг ${d.i + 1} из ${TEST_ORDER.length}`);
+
+  if (stage === 'intro') {
+    const r = readinessForTest(S, todayISO());
+    const prev = (S.tests || []).slice(-1)[0];
+    return `
+    <div class="card accent">
+      <h2>Зачем это</h2>
+      <p class="muted">Приложение не знает, что ты уже умеешь, и по умолчанию начинает с нуля. Тест занимает около 25 минут и ставит тебя сразу на свой уровень — без трёх недель разминочных тренировок.</p>
+    </div>
+
+    <div class="card ${r.level === 'warn' ? '' : ''}">
+      <span class="pill ${r.level === 'warn' ? 'warn' : r.level === 'note' ? 'warn' : 'ok'}">${r.level === 'warn' ? 'лучше подождать' : r.level === 'note' ? 'можно, но' : 'готов'}</span>
+      <p class="muted small mt mb0">${h(r.text)}</p>
+    </div>
+
+    <h3>Два правила, иначе тест вредит</h3>
+    <div class="card">
+      <p><b>Не до отказа.</b> Ни один тест не доводится до срыва. У каждого есть стоп-правило по технике — оно и есть результат. Максимум с гирей ловится потерей формы, а не силой, и ловить его опасно.</p>
+      <p class="mb0"><b>Ставлю ниже измеренного.</b> Тест показывает, что ты можешь один раз. Программе нужно то, что ты повторишь завтра и послезавтра. Поэтому итоговая ступень будет на одну ниже результата — это не занижение, это разница между разовым максимумом и рабочим объёмом.</p>
+    </div>
+
+    <h3>Что меряем</h3>
+    ${Object.entries(TESTS).map(([k, t]) => `
+      <div class="card tight">
+        <div class="ex-name">${h(t.name)}</div>
+        <div class="muted small">${h(t.what)}</div>
+      </div>`).join('')}
+
+    ${prev ? `<div class="card tight"><span class="pill">прошлый тест</span>
+      <div class="muted small mt mb0">${prettyDate(prev.date)}: жим ${prev.results.press.reps} повт · махи RPE ${prev.results.swing.rpe} · присед ${prev.results.squat.reps} повт · переноска ${prev.results.carry.sec} сек</div></div>` : ''}
+
+    <button class="btn" data-act="test-next">Начать тест</button>
+    <button class="btn line mt" data-act="test-exit">Не сейчас</button>
+    <p class="muted small center mt">Разомнись как обычно. Между тестами отдыхай 3–5 минут — иначе меряешь усталость, а не кондиции.</p>`;
+  }
+
+  if (stage === 'result') return viewTestResult();
+
+  const t = TESTS[stage];
+  const val = d[stage];
+  return `
+  <div class="card accent">
+    <div class="row between">
+      <div class="ex-name">${h(t.name)}</div>
+      <span class="pill accent">${d.i} из 4</span>
+    </div>
+    <div class="muted small">${h(t.what)}</div>
+  </div>
+
+  <div class="card">
+    <h2>Как делать</h2>
+    <ul class="cues">${t.how.map(x => `<li>${h(x)}</li>`).join('')}</ul>
+  </div>
+
+  <div class="card" style="border-color:var(--warn)">
+    <span class="pill warn">стоп-правило</span>
+    <p class="muted small mt mb0">${h(t.stop)}</p>
+  </div>
+
+  <h3>Какой гирей</h3>
+  <div class="card">${bellPicker(stage, val.bell)}</div>
+
+  ${stage === 'swing' ? `
+    <div class="card">
+      <p class="muted small">Запусти таймер: 5 кругов по минуте. В начале каждой минуты — 10 махов, рука меняется каждый круг.</p>
+      <button class="btn ghost" data-act="test-emom">▶ Запустить 5 минут</button>
+    </div>` : ''}
+
+  ${stage === 'carry' ? `
+    <div class="card">
+      <p class="muted small">Включи секундомер, иди — и останови, когда сработало стоп-правило.</p>
+      <button class="btn ghost" data-act="test-stopwatch">▶ Секундомер</button>
+    </div>` : ''}
+
+  <h3>${h(t.label)}</h3>
+  <div class="card">
+    ${t.input === 'reps' ? counter(stage, 'reps', val.reps, 0, t.cap, plural(val.reps, 'повтор', 'повтора', 'повторов')) : ''}
+    ${t.input === 'sec' ? counter(stage, 'sec', val.sec, 0, t.cap, 'секунд', 5) : ''}
+    ${t.input === 'rpe' ? `
+      <div class="rpe-grid">${[5, 6, 7, 8, 9, 10].map(v =>
+        `<button class="${val.rpe === v ? 'on' : ''}" data-act="test-rpe" data-v="${v}">${v}</button>`).join('')}</div>
+      <div class="muted small mt">${h(RPE_HINTS[val.rpe] || '')}</div>
+      <div class="switch mt">
+        <div><div class="sw-label">Техника дожила до конца</div><div class="sw-hint">Спина ровная, гиря не выше груди</div></div>
+        <button class="sw ${val.techniqueHeld ? 'on' : ''}" data-act="test-tech"><i></i></button>
+      </div>` : ''}
+  </div>
+
+  <button class="btn" data-act="test-next">${d.i === TEST_ORDER.length - 2 ? 'Посмотреть результат' : 'Дальше'}</button>
+  <button class="btn line mt" data-act="test-back">Назад</button>`;
+}
+
+function viewTestResult() {
+  const d = testDraft();
+  const placement = computePlacement(d);
+  const prog = PROGRAMS[S.settings.programId];
+  const used = new Set();
+  for (const day of prog.days) for (const sl of day.slots) used.add(sl.ex);
+
+  const shown = placement.items.filter(it => used.has(it.exId));
+  const rest = placement.items.filter(it => !used.has(it.exId));
+
+  return `
+  <div class="card accent center">
+    <div class="big-check">📋</div>
+    <h2>Вот твой уровень</h2>
+    <p class="muted small mb0">Жим ${d.press.reps} повт · махи RPE ${d.swing.rpe} · присед ${d.squat.reps} повт · переноска ${d.carry.sec} сек</p>
+  </div>
+
+  ${placement.warnings.length ? `<div class="card" style="border-color:var(--warn)">
+    ${placement.warnings.map(w => `<p class="small mb0" style="margin-bottom:8px">⚠️ ${h(w)}</p>`).join('')}
+  </div>` : ''}
+
+  <h3>С чего начнёшь в своей программе</h3>
+  <div class="card">
+    <table class="tbl">
+      <tr><th>Упражнение</th><th>Старт</th></tr>
+      ${shown.map(it => `<tr>
+        <td>${h(EXERCISES[it.exId].name)}<div class="muted small">${it.weight} кг</div></td>
+        <td>${h(stepText(it.trackId, it.step))}<div class="muted small">ступень ${it.step + 1}</div></td>
+      </tr>`).join('')}
+    </table>
+  </div>
+
+  ${rest.length ? `<details class="card tight tips">
+    <summary>Остальные упражнения (для других программ)</summary>
+    <table class="tbl">
+      ${rest.map(it => `<tr><td>${h(EXERCISES[it.exId].name)}</td><td>${it.weight} кг · ступень ${it.step + 1}</td></tr>`).join('')}
+    </table>
+  </details>` : ''}
+
+  <button class="btn" data-act="test-apply">Применить и начать отсюда</button>
+  <button class="btn line mt" data-act="test-back">Изменить ответы</button>
+  <p class="muted small center mt">Если первая неделя пойдёт тяжело — не терпи, ставь честный RPE. Приложение само откатит на ступень назад.</p>`;
 }
 
 // ── Экран «Таймер» ───────────────────────────────────────────────────────────
@@ -492,6 +681,18 @@ function viewSettings() {
       <div class="row between"><div class="ex-name">${h(p.name)}</div><span class="pill ${S.settings.programId === id ? 'accent' : ''}">${h(p.tag)}</span></div>
       <div class="muted small mt">${h(p.desc)}</div>
     </div>`).join('')}
+
+  <h3>Уровень</h3>
+  <div class="card">
+    <div class="row between">
+      <div class="grow">
+        <div class="sw-label">Тест кондиций</div>
+        <div class="sw-hint">${(S.tests || []).length ? 'последний: ' + prettyDate(S.tests[S.tests.length - 1].date) : 'ещё не проходил'}</div>
+      </div>
+      <button class="btn ghost sm" data-act="test-open">${(S.tests || []).length ? 'Перетестироваться' : 'Пройти'}</button>
+    </div>
+    <p class="muted small mt mb0">Определяет рабочие веса и стартовые ступени за одну сессию. Имеет смысл повторять раз в 8–12 недель или после перерыва.</p>
+  </div>
 
   <h3>Гири в наличии</h3>
   <div class="card">
@@ -762,6 +963,40 @@ const actions = {
     const id = +el.dataset.id;
     update(s => { s.sessions = s.sessions.filter(x => x.id !== id); });
     closeSheet(); render(); toast('Удалил');
+  },
+  // ── Тест кондиций ──
+  'test-open'() { S.testDraft = defaultTestDraft(); save(); tab = 'test'; render(); },
+  'test-exit'() { tab = 'today'; render(); },
+  'test-next'() { const d = testDraft(); d.i = Math.min(d.i + 1, TEST_ORDER.length - 1); save(); render(); },
+  'test-back'() { const d = testDraft(); d.i = Math.max(0, d.i - 1); save(); render(); },
+  'test-bell'(el) { testDraft()[el.dataset.k].bell = +el.dataset.v; save(); render(); },
+  'test-num'(el) {
+    const d = testDraft();
+    const t = d[el.dataset.k];
+    const f = el.dataset.f;
+    t[f] = Math.max(+el.dataset.min, Math.min(+el.dataset.max, t[f] + +el.dataset.d));
+    save(); render();
+  },
+  'test-rpe'(el) { testDraft().swing.rpe = +el.dataset.v; save(); render(); },
+  'test-tech'() { const s = testDraft().swing; s.techniqueHeld = !s.techniqueHeld; save(); render(); },
+  'test-emom'() { unlockAudio(); timer.startEmom(60, 5, 'Тест махов'); render(); },
+  'test-stopwatch'() { unlockAudio(); timer.startStopwatch('Прогулка фермера'); render(); },
+  'test-apply'() {
+    const d = testDraft();
+    const placement = computePlacement(d);
+    const results = { press: { ...d.press }, swing: { ...d.swing }, squat: { ...d.squat }, carry: { ...d.carry } };
+    update(s => {
+      applyPlacement(s, placement);
+      s.tests = [...(s.tests || []), { id: Date.now(), date: todayISO(), results, items: placement.items }];
+      s.testDraft = null;
+    });
+    tab = 'today';
+    render();
+    openSheet(`<div class="big-check">✓</div>
+      <h2 class="center">Уровень выставлен</h2>
+      <p class="muted center small">Сегодняшний план уже пересобран. Дальше приложение двигает нагрузку как обычно: две удачные тренировки — шаг вперёд.</p>
+      <p class="muted center small">Перетестироваться стоит через 8–12 недель или после перерыва длиннее двух недель.</p>
+      <button class="btn" data-act="close-sheet">Понятно</button>`);
   },
   'quick-rest'(el) { unlockAudio(); startRest(+el.dataset.v); render(); },
   'start-emom'() {

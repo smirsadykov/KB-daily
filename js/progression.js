@@ -167,10 +167,11 @@ export function planFor(state, dateISO = todayISO(), readiness = null, dayOverri
   };
 }
 
-// Что будет на следующем шаге — для мотивации на экране прогресса
-export function nextStepText(trackId, step) {
+// Описание конкретной ступени словами
+export function stepText(trackId, step) {
   const track = TRACKS[trackId];
-  const s = track.steps[Math.min(step + 1, track.steps.length - 1)];
+  if (!track) return '';
+  const s = track.steps[clamp(step, 0, track.steps.length - 1)];
   if (!s) return '';
   if (track.kind === 'ballistic') return `${s.sets} × ${s.reps}, отдых ${s.emom ? 'по минуте' : s.rest + ' сек'}`;
   if (track.kind === 'ladder') return `${s.ladders} ${ladderWord(s.ladders)} ${s.rungs.join('-')}`;
@@ -178,6 +179,11 @@ export function nextStepText(trackId, step) {
   if (track.kind === 'time') return `${s.sets} × ${s.sec} сек`;
   if (track.kind === 'emom') return `${s.sets} кругов`;
   return '';
+}
+
+// Что будет на следующем шаге — для мотивации на экране прогресса
+export function nextStepText(trackId, step) {
+  return stepText(trackId, step + 1);
 }
 
 // ── Разбор результата и прогрессия ───────────────────────────────────────────

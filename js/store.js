@@ -45,7 +45,9 @@ export function defaultState() {
     },
     progress,
     sessions: [],
-    today: null
+    tests: [],
+    today: null,
+    testDraft: null
   };
 }
 
@@ -78,6 +80,7 @@ function migrate(s) {
   }
   if (!PROGRAMS[merged.settings.programId]) merged.settings.programId = 'daily_min';
   merged.sessions = Array.isArray(s.sessions) ? s.sessions : [];
+  merged.tests = Array.isArray(s.tests) ? s.tests : [];
   return merged;
 }
 
