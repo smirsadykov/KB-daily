@@ -26,17 +26,13 @@ python3 -m http.server 4178
 
 Дальше открыть `http://localhost:4178`. Сборка не нужна — это чистый HTML/CSS/JS без зависимостей.
 
-## Как выложить на GitHub Pages
+## Где живёт
 
-```bash
-git init && git add -A && git commit -m "Гиря каждый день: первая версия"
-git branch -M main
-git remote add origin https://github.com/USERNAME/kettlebell-daily.git
-git push -u origin main
-```
+Репозиторий: <https://github.com/smirsadykov/KB-daily>
+Приложение: <https://smirsadykov.github.io/KB-daily/>
 
-Затем в репозитории: **Settings → Pages → Source: Deploy from a branch → main / (root) → Save**.
-Через минуту приложение будет по адресу `https://USERNAME.github.io/kettlebell-daily/`.
+Публикация включается один раз: **Settings → Pages → Source: Deploy from a branch → main / (root) → Save**.
+Дальше каждый `git push` в `main` обновляет сайт сам.
 
 Все пути в проекте относительные, поэтому подпапка репозитория работает без правок.
 
