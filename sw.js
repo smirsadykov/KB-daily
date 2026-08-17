@@ -1,5 +1,5 @@
 // Офлайн-кэш. Меняешь код — подними версию, и обновление приедет само.
-const VERSION = 'kbd-v1';
+const VERSION = 'kbd-v2';
 const ASSETS = [
   './',
   './index.html',
