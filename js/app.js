@@ -160,32 +160,51 @@ function viewToday() {
       </div>
     </div>` : '';
 
-  if (preview.isRest) return banner + viewRestDay(preview) + suppCard();
-  return banner + viewReadiness(preview, w) + suppCard();
+  if (preview.isRest) return banner + suppCard() + viewRestDay(preview);
+  return banner + suppCard() + viewReadiness(preview, w);
 }
 
 
-// Компактная карточка добавок на главном экране: если их не видно каждый день,
-// регулярность теряется, а для креатина и бета-аланина важна именно она.
+// Карточка добавок на главном экране. Держим её вверху и всегда видимой:
+// в разделе «Ещё» её никто не находит, а креатин и бета-аланин работают
+// только от регулярности.
 function suppCard() {
   const chosen = (S.settings.supps || []).filter(id => byId(id));
-  if (!chosen.length) return '';
+  if (!chosen.length) {
+    return `
+    <div class="card tight tap" role="button" tabindex="0" data-act="supps-open">
+      <div class="row between">
+        <div class="grow">
+          <div class="ex-name" style="font-size:15px">Добавки</div>
+          <div class="muted small">Выбери, что принимаешь — буду напоминать здесь</div>
+        </div>
+        <span class="pill">настроить</span>
+      </div>
+    </div>`;
+  }
   const log = suppsToday();
-  const left = chosen.filter(id => !log[id]);
+  const left = chosen.filter(id => !log[id]).length;
   return `
   <div class="card tight">
-    <div class="row between" style="margin-bottom:${left.length ? '8px' : '0'}">
-      <div class="grow"><div class="ex-name" style="font-size:15px">Добавки на сегодня</div>
-      <div class="muted small">${left.length ? `осталось ${left.length} из ${chosen.length}` : 'всё принято'}</div></div>
-      ${left.length ? '' : '<span class="pill ok">✓</span>'}
+    <div class="row between" style="margin-bottom:10px">
+      <div class="grow">
+        <div class="ex-name" style="font-size:15px">Добавки на сегодня</div>
+        <div class="muted small">${left ? `осталось ${left} из ${chosen.length}` : 'всё принято'}</div>
+      </div>
+      ${left ? '' : '<span class="pill ok">✓</span>'}
     </div>
-    ${left.map(id => {
-      const sp = byId(id);
-      return `<div class="row between" style="padding:4px 0">
-        <div class="grow small">${h(sp.name)} <span class="muted">· ${h(TIMING[sp.timing])}</span></div>
-        <button class="btn ghost sm" data-act="supp-take" data-id="${id}">Принял</button>
-      </div>`;
-    }).join('')}
+    <div class="chips">
+      ${chosen.map(id => {
+        const sp = byId(id);
+        const done = !!log[id];
+        return `<button class="chip ${done ? 'on' : ''}" data-act="supp-take" data-id="${id}"
+          title="${h(doseFor(sp, S.settings.bodyWeight))}">${done ? '✓ ' : ''}${h(sp.name)}</button>`;
+      }).join('')}
+    </div>
+    <div class="muted small" style="margin-top:8px">
+      ${chosen.map(id => byId(id)).filter(sp => !log[sp.id])
+        .map(sp => `${h(sp.name)}: ${h(doseFor(sp, S.settings.bodyWeight))}`).join(' · ') || 'Нажми ещё раз, чтобы снять отметку'}
+    </div>
   </div>`;
 }
 
@@ -305,6 +324,8 @@ function viewSession(plan) {
     <div class="ex-prog"><i style="width:${pct}%"></i></div>
   </div>
 
+  ${suppCard()}
+
   ${plan.warmup.length ? `
   <details class="card tight tips" ${doneSets === 0 ? 'open' : ''}>
     <summary>Разминка · 4 минуты</summary>
@@ -320,7 +341,6 @@ function viewSession(plan) {
     <ul class="cues">${plan.cooldown.map(w => `<li>${h(EXERCISES[w.ex].name)} — ${w.reps}${w.note ? ' ' + h(w.note) : ''}</li>`).join('')}</ul>
   </details>` : ''}
 
-  ${suppCard()}
   <button class="btn" data-act="finish">Завершить тренировку</button>
   <button class="btn line mt" data-act="abort">Отменить и вернуться</button>`;
 }
