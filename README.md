@@ -74,7 +74,7 @@ js/supplements.js       каталог добавок по консенсусу 
 js/app.js               интерфейс и события
 sw.js                   офлайн-кэш
 tools/make-icons.mjs    генератор иконок (node tools/make-icons.mjs)
-tools/audit.mjs         тесты движка: 10400 проверок инвариантов (node tools/audit.mjs)
+tools/audit.mjs         тесты движка: 10410 проверок инвариантов (node tools/audit.mjs)
 tools/check-time.mjs    сверка расчёта времени с эталонами (node tools/check-time.mjs)
 tools/review.mjs        аудит данных и пригодности программ (node tools/review.mjs)
 tools/simulate.mjs      симуляция месяца использования (node tools/simulate.mjs)
@@ -110,7 +110,7 @@ node tools/bump-version.mjs
 node tools/audit.mjs
 ```
 
-Гоняет 10400 проверок по всем программам, бюджетам времени и ступеням прогрессии:
+Гоняет 10410 проверок по всем программам, бюджетам времени и ступеням прогрессии:
 баланс сторон, целостность парных блоков, соблюдение бюджета, полы отдыха,
 логику прогрессии и совпадение подписей с фактическими подходами.
 

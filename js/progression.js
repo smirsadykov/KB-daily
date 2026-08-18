@@ -1,6 +1,6 @@
 // Движок прогрессии: что делать сегодня и что менять после тренировки.
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=30';
-import { nextBell, prevBell, todayISO } from './store.js?v=30';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=31';
+import { nextBell, prevBell, todayISO } from './store.js?v=31';
 
 const DAY = 86400000;
 
@@ -485,20 +485,31 @@ export function planFor(state, dateISO = todayISO(), readiness = null, dayOverri
     if (slot.replaces === 'tgu' && state.settings.tgu) continue;
 
     // Двугиревые движения имеют смысл только при наличии пары.
-    // Если пары нет — подставляем одногиревую замену, а не молча даём то,
-    // что человек физически не может выполнить.
+    //
+    // Проверять надо НАЛИЧИЕ ПАР ВООБЩЕ, а не совпадение с текущим рабочим
+    // весом: стартовый вес берётся из общего набора гирь и парным может
+    // не быть. Раньше из-за этого человек с парой 24 получал одногиревую
+    // замену только потому, что упражнение стартовало с 16.
+    const pairs = state.settings.pairs || [];
     let exId = slot.ex;
+    let pairWeight = null;
     if (slot.needsPair) {
-      const w = state.progress[slot.ex]?.weight;
-      if (!(state.settings.pairs || []).includes(w)) exId = slot.fallback;
+      if (!pairs.length) exId = slot.fallback;
+      else {
+        const p0 = state.progress[slot.ex];
+        pairWeight = pairs.includes(p0?.weight)
+          ? p0.weight
+          : pairs.reduce((b, x) => Math.abs(x - (p0?.weight ?? x)) < Math.abs(b - (p0?.weight ?? b)) ? x : b, pairs[0]);
+      }
     }
     const ex = EXERCISES[exId];
     const track = TRACKS[slot.track];
     const p = state.progress[exId] || { weight: state.settings.bells[0], step: 0 };
+    const weight = pairWeight ?? p.weight;
     const stepIdx = clamp(p.steps?.[slot.track] ?? p.step ?? 0, 0, track.steps.length - 1);
     const step = track.steps[stepIdx];
-    const hasPair = (state.settings.pairs || []).includes(p.weight);
-    const item = expandSets(exId, ex, step, track.kind, p.weight, mult, state.settings.bells, track, hasPair);
+    const hasPair = pairs.includes(weight);
+    const item = expandSets(exId, ex, step, track.kind, weight, mult, state.settings.bells, track, hasPair);
     item.exId = exId;
     item.trackId = slot.track;
     item.perCycle = perCycle[slot.ex + '|' + slot.track] || 1;
@@ -507,7 +518,7 @@ export function planFor(state, dateISO = todayISO(), readiness = null, dayOverri
     item.name = ex.name;
     item.step = stepIdx;
     item.stepTotal = track.steps.length;
-    item.weight = p.weight;
+    item.weight = weight;
     item.scheme = schemeText(track.kind, step, item);
     item.label = step.label || '';
     items.push(item);

@@ -335,3 +335,29 @@ console.log('\n=== 11. Поправка пропорциональна пром�
 }
 console.log(`  всего проверок ${checks}, провалов ${fails}`);
 console.log(`\nРЕЗУЛЬТАТ: ${checks} проверок, ${fails} провалов`);
+
+console.log('\n=== 12. Двугиревые движения при наличии пары ===');
+{
+  // Раньше движок сверял пару с ТЕКУЩИМ рабочим весом. Упражнение стартовало
+  // с 16 кг, пары шестнадцаток не было — и человек с парой 24 молча получал
+  // одногиревую замену. Проверяем оба направления.
+  const дв = (p) => p.items.filter(i => i.exId.startsWith('dbl_') || i.exId === 'swing_2kb');
+  const од = (p) => p.items.filter(i => ['goblet_squat', 'clean_press', 'row', 'swing_2h'].includes(i.exId));
+
+  for (const [pairs, ждём] of [[[24], 'двугиревые'], [[16, 24, 32], 'двугиревые'], [[], 'одногиревые']]) {
+    const st = mkState({ settings: { programId: 'ab15', timeBudget: 0 } });
+    st.settings.pairs = pairs;
+    const p = planFor(st, today, null, 0);
+    if (ждём === 'двугиревые') {
+      ok(дв(p).length === 3, `пары [${pairs}]: ждали 3 двугиревых упражнения, получили ${дв(p).length}`);
+      ok(od => true, '');
+      ok(p.items.every(i => !i.sets.some(s => s.side)), `пары [${pairs}]: двугиревые не должны делиться на левую и правую`);
+      ok(p.items.every(i => pairs.includes(i.weight)), `пары [${pairs}]: рабочий вес должен быть из имеющихся пар, получили ${p.items.map(i => i.weight)}`);
+    } else {
+      ok(дв(p).length === 0, `без пар: двугиревых быть не должно, получили ${дв(p).length}`);
+      ok(од(p).length === 3, `без пар: ждали 3 одногиревых замены, получили ${од(p).length}`);
+    }
+  }
+}
+console.log(`  всего проверок ${checks}, провалов ${fails}`);
+console.log(`\nПРОВЕРЕНО: ${checks} проверок, ${fails} провалов`);
