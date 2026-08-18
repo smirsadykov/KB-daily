@@ -1,6 +1,6 @@
 // Движок прогрессии: что делать сегодня и что менять после тренировки.
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=26';
-import { nextBell, prevBell, todayISO } from './store.js?v=26';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=27';
+import { nextBell, prevBell, todayISO } from './store.js?v=27';
 
 const DAY = 86400000;
 
@@ -464,6 +464,15 @@ export function planFor(state, dateISO = todayISO(), readiness = null, dayOverri
   const dayMult = day.mult ?? 1;
   const mult = clamp(w.mult * rMult * dayMult, 0.4, 1.25);
 
+  // Как часто движение встречается в цикле — нужно, чтобы подтверждения
+  // считались во времени, а не в тренировках. Движение раз в неделю
+  // с лестницей в 14 ступеней иначе не закончится никогда.
+  const perCycle = {};
+  for (const d of prog.days) for (const sl of d.slots) {
+    const k = sl.ex + '|' + sl.track;
+    perCycle[k] = (perCycle[k] || 0) + 1;
+  }
+
   const items = [];
   for (const slot of day.slots) {
     // Турецкие подъёмы включаются только если их включили в настройках
@@ -487,6 +496,8 @@ export function planFor(state, dateISO = todayISO(), readiness = null, dayOverri
     const item = expandSets(exId, ex, step, track.kind, p.weight, mult, state.settings.bells, track, hasPair);
     item.exId = exId;
     item.trackId = slot.track;
+    item.perCycle = perCycle[slot.ex + '|' + slot.track] || 1;
+    item.cycleDays = prog.days.length;
     item.kind = track.kind;
     item.name = ex.name;
     item.step = stepIdx;
@@ -638,7 +649,15 @@ export function applySession(state, session) {
       continue;
     }
 
-    const winsNeeded = track.winsNeeded ?? 2;
+    // Подтверждения меряем неделями, а не тренировками: три занятия
+    // в неделю — эталон, реже — пропорционально меньше подтверждений.
+    // Трек может отказаться от пересчёта, если его темп задан программой.
+    const base = track.winsNeeded ?? 2;
+    const perWeek = entry.perCycle && entry.cycleDays
+      ? (entry.perCycle * 7) / entry.cycleDays
+      : 3;
+    const winsNeeded = track.fixedPace ? base
+      : Math.max(1, Math.round(base * Math.min(perWeek, 3) / 3));
     if (p.wins >= winsNeeded) {
       p.wins = 0;
       const res = advance(1);

@@ -126,9 +126,7 @@ export function computePlacement(r) {
     // двумя руками легче, чем одной — можно на ступень выше
     { exId: 'swing_2h', trackId: 'swing_vol', weight: r.swing.bell, step: clamp(swing.step + 1, 0, 8) },
     { exId: 'clean_press', trackId: 'press_ladder', weight: r.press.bell, step: press.step },
-    { exId: 'press', trackId: 'press_ladder', weight: r.press.bell, step: press.step },
     { exId: 'goblet_squat', trackId: 'squat_reps', weight: r.squat.bell, step: squat.step },
-    { exId: 'front_squat', trackId: 'squat_reps', weight: r.press.bell, step: clamp(squat.step - 1, 0, 7) },
     { exId: 'row', trackId: 'row_reps', weight: r.squat.bell, step: rowStep(r.squat.reps).step },
     { exId: 'carry_farmer', trackId: 'carry_time', weight: r.carry.bell, step: carry.step },
     { exId: 'carry_rack', trackId: 'carry_time', weight: r.press.bell, step: clamp(carry.step - 1, 0, 5) },
