@@ -58,6 +58,9 @@ function render() {
   const key = viewKey();
   const sameView = key === lastViewKey;
   const keepY = window.scrollY;
+  // innerHTML стирает состояние <details>: раскрытые подсказки захлопывались
+  // после каждой отметки подхода. Запоминаем открытые и возвращаем обратно.
+  const openDetails = new Set($$('details[data-key]').filter(d => d.open).map(d => d.dataset.key));
 
   if (!S.onboarded) {
     screen.innerHTML = viewOnboarding();
@@ -74,6 +77,8 @@ function render() {
   if (tab === 'progress') { screen.innerHTML = viewProgress(); }
   if (tab === 'settings') { screen.innerHTML = viewSettings(); }
   $$('.tab').forEach(b => b.classList.toggle('is-active', b.dataset.tab === tab));
+
+  $$('details[data-key]').forEach(d => { if (openDetails.has(d.dataset.key)) d.open = true; });
 
   lastViewKey = key;
   // при возврате позиции ограничиваем её новой высотой страницы:
@@ -120,7 +125,7 @@ function viewOnboarding() {
       <div class="muted small mt">${h(p.desc)}</div>
       <div class="muted small" style="opacity:.75">${h(p.for)}</div>
       ${p.origin ? `<div class="muted small" style="opacity:.6;margin-top:6px">Происхождение: ${h(p.origin)}</div>` : ''}
-      ${p.gives ? `<details class="tips" style="margin-top:8px">
+      ${p.gives ? `<details class="tips" data-key="prog-${id}" style="margin-top:8px">
         <summary>Что даёт и чего не даёт</summary>
         <div class="muted small" style="margin-top:6px"><b>Даёт:</b></div>
         <ul class="cues">${p.gives.map(x => `<li>${h(x)}</li>`).join('')}</ul>
@@ -334,7 +339,7 @@ function viewSession(plan) {
   ${suppCard()}
 
   ${plan.warmup.length ? `
-  <details class="card tight tips" ${doneSets === 0 ? 'open' : ''}>
+  <details class="card tight tips" data-key="warmup" ${doneSets === 0 ? 'open' : ''}>
     <summary>Разминка · 4 минуты</summary>
     <ul class="cues">${plan.warmup.map(w => `<li>${h(EXERCISES[w.ex].name)} — ${w.reps}${w.note ? ' ' + h(w.note) : ''}</li>`).join('')}</ul>
   </details>` : ''}
@@ -343,7 +348,7 @@ function viewSession(plan) {
   ${plan.items.map((it, i) => (plan.pairs || []).some(p => p.a === i || p.b === i) ? '' : viewExercise(it, i)).join('')}
 
   ${plan.cooldown.length ? `
-  <details class="card tight tips">
+  <details class="card tight tips" data-key="cooldown">
     <summary>Заминка · 2 минуты</summary>
     <ul class="cues">${plan.cooldown.map(w => `<li>${h(EXERCISES[w.ex].name)} — ${w.reps}${w.note ? ' ' + h(w.note) : ''}</li>`).join('')}</ul>
   </details>` : ''}
@@ -382,7 +387,7 @@ function viewPair(plan, p) {
           ${viewSet(it, s, idx, o.idx, EXERCISES[it.exId].short)}`;
       }).join('')}
     </div>
-    <details class="tips">
+    <details class="tips" data-key="pair-${p.a}-${p.b}">
       <summary>Как делать правильно</summary>
       <ul class="cues">${[a, b].map(x => `<li><b>${h(EXERCISES[x.exId].short)}:</b> ${h((EXERCISES[x.exId].cues || [])[0] || '')}</li>`).join('')}</ul>
     </details>
@@ -405,7 +410,7 @@ function viewExercise(it, i) {
     <div class="sets">
       ${it.sets.map((s, j) => viewSet(it, s, i, j)).join('')}
     </div>
-    <details class="tips">
+    <details class="tips" data-key="ex-${it.exId}">
       <summary>Как делать правильно</summary>
       <ul class="cues">${(ex.cues || []).map(c => `<li>${h(c)}</li>`).join('')}</ul>
     </details>
@@ -596,7 +601,7 @@ function viewTestResult() {
     </table>
   </div>
 
-  ${rest.length ? `<details class="card tight tips">
+  ${rest.length ? `<details class="card tight tips" data-key="test-rest">
     <summary>Остальные упражнения (для других программ)</summary>
     <table class="tbl">
       ${rest.map(it => `<tr><td>${h(EXERCISES[it.exId].name)}</td><td>${it.weight} кг · ступень ${it.step + 1}</td></tr>`).join('')}
@@ -640,6 +645,33 @@ function viewSupps() {
     <p class="muted small mb0">${h(DIET_FIRST)}</p>
   </div>
 
+  ${['A', 'B'].map(tier => `
+    <h3>${TIERS[tier].label}</h3>
+    <p class="muted small" style="margin:-4px 0 8px">${h(TIERS[tier].note)}</p>
+    ${groups[tier].map(sp => {
+      const on = chosen.includes(sp.id);
+      return `
+      <div class="card tight">
+        <div class="row between">
+          <div class="grow">
+            <div class="ex-name">${h(sp.name)}</div>
+            <div class="muted small">${h(doseFor(sp, S.settings.bodyWeight))}</div>
+          </div>
+          <button class="sw ${on ? 'on' : ''}" data-act="supp-toggle" data-id="${sp.id}"><i></i></button>
+        </div>
+        <details class="tips" data-key="supp-${sp.id}">
+          <summary>Подробнее</summary>
+          <ul class="cues">
+            <li><b>Что делает:</b> ${h(sp.what)}</li>
+            <li><b>Почему в списке:</b> ${h(sp.why)}</li>
+            ${sp.doseNote ? `<li><b>Про дозу:</b> ${h(sp.doseNote)}</li>` : ''}
+            <li><b>Осторожно:</b> ${h(sp.safety)}</li>
+            <li><b>Частое заблуждение:</b> ${h(sp.myth)}</li>
+          </ul>
+        </details>
+      </div>`;
+    }).join('')}`).join('')}
+
   ${chosen.length ? `
   <h3>Сегодня</h3>
   <div class="card">
@@ -657,34 +689,7 @@ function viewSupps() {
     ${adh !== null ? `<p class="muted small mb0 mt">Регулярность за 30 дней: ${adh}%. Для креатина, бета-аланина и омега-3 важна именно она, а не разовые приёмы.</p>` : ''}
   </div>` : ''}
 
-  ${['A', 'B'].map(tier => `
-    <h3>${TIERS[tier].label}</h3>
-    <p class="muted small" style="margin:-4px 0 8px">${h(TIERS[tier].note)}</p>
-    ${groups[tier].map(sp => {
-      const on = chosen.includes(sp.id);
-      return `
-      <div class="card tight">
-        <div class="row between">
-          <div class="grow">
-            <div class="ex-name">${h(sp.name)}</div>
-            <div class="muted small">${h(doseFor(sp, S.settings.bodyWeight))}</div>
-          </div>
-          <button class="sw ${on ? 'on' : ''}" data-act="supp-toggle" data-id="${sp.id}"><i></i></button>
-        </div>
-        <details class="tips">
-          <summary>Подробнее</summary>
-          <ul class="cues">
-            <li><b>Что делает:</b> ${h(sp.what)}</li>
-            <li><b>Почему в списке:</b> ${h(sp.why)}</li>
-            ${sp.doseNote ? `<li><b>Про дозу:</b> ${h(sp.doseNote)}</li>` : ''}
-            <li><b>Осторожно:</b> ${h(sp.safety)}</li>
-            <li><b>Частое заблуждение:</b> ${h(sp.myth)}</li>
-          </ul>
-        </details>
-      </div>`;
-    }).join('')}`).join('')}
-
-  <details class="card tight tips">
+  <details class="card tight tips" data-key="supp-useless">
     <summary>На что не тратить деньги</summary>
     <p class="muted small mt">Отмечать это нечего — эти вещи не работают. Держу список только чтобы ты не купил их по чьему-нибудь совету.</p>
     ${groups.C.map(sp => `<div style="margin-bottom:10px">
@@ -933,7 +938,7 @@ function viewSettings() {
       <div class="row between"><div class="ex-name">${h(p.name)}</div><span class="pill ${S.settings.programId === id ? 'accent' : ''}">${h(p.tag)}</span></div>
       <div class="muted small mt">${h(p.desc)}</div>
       ${p.origin ? `<div class="muted small" style="opacity:.6;margin-top:6px">Происхождение: ${h(p.origin)}</div>` : ''}
-      ${p.gives ? `<details class="tips" style="margin-top:8px">
+      ${p.gives ? `<details class="tips" data-key="prog-${id}" style="margin-top:8px">
         <summary>Что даёт и чего не даёт</summary>
         <div class="muted small" style="margin-top:6px"><b>Даёт:</b></div>
         <ul class="cues">${p.gives.map(x => `<li>${h(x)}</li>`).join('')}</ul>
