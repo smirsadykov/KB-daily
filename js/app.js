@@ -88,6 +88,7 @@ function viewOnboarding() {
       </div>
       <div class="muted small mt">${h(p.desc)}</div>
       <div class="muted small" style="opacity:.75">${h(p.for)}</div>
+      ${p.origin ? `<div class="muted small" style="opacity:.6;margin-top:6px">Происхождение: ${h(p.origin)}</div>` : ''}
     </div>`).join('')}
 
   <div class="card">
@@ -318,7 +319,7 @@ function viewSet(it, s, i, j, exLabel) {
   const isTime = it.kind === 'time';
   const title = isTime
     ? `${s.sec} сек`
-    : s.complex ? '1 круг' : `${exLabel ? exLabel + ' · ' : ''}${s.actualReps ?? s.reps} ${plural(s.actualReps ?? s.reps, 'повтор', 'повтора', 'повторов')}`;
+    : s.complex ? `1 круг${s.complexReps ? ' · ' + s.complexReps : ''}` : `${exLabel ? exLabel + ' · ' : ''}${s.actualReps ?? s.reps} ${plural(s.actualReps ?? s.reps, 'повтор', 'повтора', 'повторов')}`;
   const sub = [s.side ? `<span class="side-${s.side}">${sideText(s.side)}</span>` : '', `${s.weight} кг`, s.rung ? `ступень ${s.rung}` : '']
     .filter(Boolean).join(' · ');
   const btn = s.done ? '✓ есть' : isTime ? `▶ ${s.sec}с` : 'Готово';
@@ -717,6 +718,7 @@ function viewSettings() {
     <div class="card tight tap ${S.settings.programId === id ? 'accent' : ''}" role="button" tabindex="0" data-act="program" data-v="${id}">
       <div class="row between"><div class="ex-name">${h(p.name)}</div><span class="pill ${S.settings.programId === id ? 'accent' : ''}">${h(p.tag)}</span></div>
       <div class="muted small mt">${h(p.desc)}</div>
+      ${p.origin ? `<div class="muted small" style="opacity:.6;margin-top:6px">Происхождение: ${h(p.origin)}</div>` : ''}
     </div>`).join('')}
 
   <h3>Сколько есть времени</h3>

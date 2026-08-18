@@ -91,7 +91,8 @@ function expandSets(exId, ex, step, kind, weight, mult) {
     // как и в баллистике: при работе на каждую сторону кругов должно быть чётное
     // число, иначе одна рука получит на круг больше
     if (ex.side === 'each' && n % 2 !== 0) n += 1;
-    for (let i = 0; i < n; i++) push({ reps: 1, side: sideFor(i), complex: true });
+    // один круг комплекса = 2 заброса + 1 жим + 3 приседа (соотношение Дэна Джона)
+    for (let i = 0; i < n; i++) push({ reps: 1, side: sideFor(i), complex: true, complexReps: '2 заброса · 1 жим · 3 приседа' });
     return { sets, rest: 0, emom: step.emom };
   }
   return { sets, rest: 60, emom: null };
