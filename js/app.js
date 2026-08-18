@@ -1,17 +1,17 @@
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel } from './data.js?v=28';
-import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON } from './store.js?v=28';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel } from './data.js?v=29';
+import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON } from './store.js?v=29';
 import {
   planFor, applySession, summarizeItem, readinessMult, readinessLabel,
   waveIndex, weekIndex, wave, isDeload, acwr, streak, sessionLoad, tonnage, nextStepText, stepText, dayIndex,
   estimateMinutes, pairRealRest, paceFactor
-} from './progression.js?v=28';
-import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=28';
-import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=28';
+} from './progression.js?v=29';
+import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=29';
+import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=29';
 
 // byId должен видеть и свои записи пользователя, поэтому оборачиваем
 const byId = (id) => suppById(id, S);
-import { timer, fmt, unlockAudio } from './timer.js?v=28';
-import { barChart, gauge } from './charts.js?v=28';
+import { timer, fmt, unlockAudio } from './timer.js?v=29';
+import { barChart, gauge } from './charts.js?v=29';
 
 // ── Мелкие помощники ─────────────────────────────────────────────────────────
 const $ = (s, r = document) => r.querySelector(s);
