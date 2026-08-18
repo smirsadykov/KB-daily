@@ -234,3 +234,36 @@ console.log('\n=== 9. Подпись не теряет смысл после п�
 }
 console.log(`  всего проверок ${checks}, провалов ${fails}`);
 console.log(`\nИТОГ: ${checks} проверок, ${fails} провалов`);
+
+console.log('\n=== 10. Потолки не режут последние ступени лестниц ===');
+{
+  // Лестницу ABC подняли до 30 кругов, а в коде оставался жёсткий потолок 16 —
+  // до цели программы было не дойти. Проверяем все треки на такой обрыв.
+  const { TRACKS: TR } = await import('../js/data.js');
+  for (const [pid, prog] of Object.entries(PROGRAMS)) {
+    for (const day of prog.days) {
+      for (const sl of day.slots) {
+        const tr = TR[sl.track];
+        if (!tr || tr.kind === 'swap' || tr.kind === 'interval') continue;
+        const lastIdx = tr.steps.length - 1;
+        const st = mkState({ settings: { programId: pid, timeBudget: 0 }, step: lastIdx });
+        st.settings.pairs = [16, 24, 32];
+        const di = prog.days.indexOf(day);
+        const p = planFor(st, today, null, di);
+        if (p.isRest) continue;
+        const it = p.items.find(x => x.trackId === sl.track);
+        if (!it) continue;
+        const want = tr.steps[lastIdx];
+        // у лёгких дней свой множитель — это задумано, а не обрезка потолком
+        const expect = Math.round(want.sets * (day.mult ?? 1));
+        if (tr.kind === 'emom' || tr.kind === 'ballistic') {
+          const unit = tr.kind === 'emom' ? 'кругов' : 'подходов';
+          ok(it.sets.length >= expect,
+             `${pid}/${sl.ex} (день ×${day.mult ?? 1}): ждали не меньше ${expect} ${unit}, выдано ${it.sets.length}`);
+        }
+      }
+    }
+  }
+}
+console.log(`  всего проверок ${checks}, провалов ${fails}`);
+console.log(`\nВСЕГО: ${checks} проверок, ${fails} провалов`);

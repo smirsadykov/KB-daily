@@ -123,7 +123,9 @@ function expandSets(exId, ex, step, kind, weight, mult, bells = [], track = {}, 
   }
 
   if (kind === 'emom') {
-    let n = clamp(Math.round(step.sets * mult), 2, 16);
+    // потолок должен быть выше конца лестницы, иначе последние ступени
+    // молча срезаются и до цели программы не дойти
+    let n = clamp(Math.round(step.sets * mult), 2, 40);
     // Если этот вес есть парой — делаем как в оригинале, двумя гирями сразу,
     // и круг не делится на стороны. Иначе круг идёт на каждую сторону,
     // и тогда число кругов должно быть чётным, чтобы руки получили поровну.
@@ -447,14 +449,22 @@ export function planFor(state, dateISO = todayISO(), readiness = null, dayOverri
     if (slot.optional === 'tgu' && !state.settings.tgu) continue;
     if (slot.replaces === 'tgu' && state.settings.tgu) continue;
 
-    const ex = EXERCISES[slot.ex];
+    // Двугиревые движения имеют смысл только при наличии пары.
+    // Если пары нет — подставляем одногиревую замену, а не молча даём то,
+    // что человек физически не может выполнить.
+    let exId = slot.ex;
+    if (slot.needsPair) {
+      const w = state.progress[slot.ex]?.weight;
+      if (!(state.settings.pairs || []).includes(w)) exId = slot.fallback;
+    }
+    const ex = EXERCISES[exId];
     const track = TRACKS[slot.track];
-    const p = state.progress[slot.ex] || { weight: state.settings.bells[0], step: 0 };
+    const p = state.progress[exId] || { weight: state.settings.bells[0], step: 0 };
     const stepIdx = clamp(p.steps?.[slot.track] ?? p.step ?? 0, 0, track.steps.length - 1);
     const step = track.steps[stepIdx];
     const hasPair = (state.settings.pairs || []).includes(p.weight);
-    const item = expandSets(slot.ex, ex, step, track.kind, p.weight, mult, state.settings.bells, track, hasPair);
-    item.exId = slot.ex;
+    const item = expandSets(exId, ex, step, track.kind, p.weight, mult, state.settings.bells, track, hasPair);
+    item.exId = exId;
     item.trackId = slot.track;
     item.kind = track.kind;
     item.name = ex.name;

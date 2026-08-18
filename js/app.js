@@ -988,19 +988,36 @@ function viewSettings() {
     <p class="muted small mt mb0">Комплекс ABC в оригинале делается парой гирь одного веса. Если пары нет — приложение даёт версию под одну гирю: круг идёт на каждую сторону, работы столько же, но времени вдвое больше.</p>
   </div>
 
-  <h3>Рабочие веса</h3>
+  <h3>Рабочие веса и ступени</h3>
   <div class="card">
-    ${[...usedEx].map(exId => {
-      if (exId === 'tgu' && !S.settings.tgu) return '';
-      const p = S.progress[exId];
-      return `<div class="switch">
-        <div><div class="sw-label">${h(EXERCISES[exId].name)}</div><div class="sw-hint">${Object.keys(p.steps || {}).length ? 'в работе' : 'ещё не начато'}</div></div>
-        <select data-act="weight" data-ex="${exId}" style="width:110px;min-height:42px">
-          ${S.settings.bells.map(b => `<option value="${b}" ${b === p.weight ? 'selected' : ''}>${b} кг</option>`).join('')}
-        </select>
-      </div>`;
-    }).join('')}
-    <p class="muted small mt mb0">Меняешь вес руками — шаг объёма сбрасывается автоматически, чтобы не словить перегруз.</p>
+    ${(() => {
+      const seen = new Set();
+      const rows = [];
+      for (const day of prog.days) for (const sl of day.slots) {
+        const key = sl.ex + '|' + sl.track;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        if (sl.ex === 'tgu' && !S.settings.tgu) continue;
+        const p = S.progress[sl.ex]; const tr = TRACKS[sl.track];
+        if (!p || !tr) continue;
+        const cur = p.steps?.[sl.track] ?? p.step ?? 0;
+        rows.push(`
+        <div style="padding:10px 0;border-bottom:1px solid var(--line)">
+          <div class="row between" style="margin-bottom:8px">
+            <div class="grow"><div class="sw-label">${h(EXERCISES[sl.ex].name)}</div>
+            <div class="sw-hint">${h(stepText(sl.track, cur))}</div></div>
+            <select data-act="weight" data-ex="${sl.ex}" style="width:100px;min-height:42px">
+              ${S.settings.bells.map(b => `<option value="${b}" ${b === p.weight ? 'selected' : ''}>${b} кг</option>`).join('')}
+            </select>
+          </div>
+          <select data-act="setstep" data-ex="${sl.ex}" data-track="${sl.track}" style="min-height:42px">
+            ${tr.steps.map((_, i) => `<option value="${i}" ${i === cur ? 'selected' : ''}>Ступень ${i + 1} из ${tr.steps.length} — ${h(stepText(sl.track, i))}</option>`).join('')}
+          </select>
+        </div>`);
+      }
+      return rows.join('');
+    })()}
+    <p class="muted small mt mb0">Ступень можно поставить руками, если уровень уже есть и ждать прогрессии незачем. После перерыва бери на 2–3 ступени ниже своего прошлого максимума: тест меряет разовый результат, а программе нужен повторяемый. Смена веса сбрасывает ступень в начало — это защита от перегруза.</p>
   </div>
 
   <h3>Настройки</h3>
@@ -1315,6 +1332,19 @@ const actions = {
     update(s => { s.settings.bodyWeight = v > 0 ? v : null; });
     render();
     toast(v > 0 ? 'Дозу кофеина посчитаю по весу' : 'Вес убран');
+  },
+  setstep(el) {
+    const { ex, track } = el.dataset;
+    update(s => {
+      const p = s.progress[ex];
+      if (!p.steps) p.steps = {};
+      p.steps[track] = +el.value;
+      p.step = +el.value;
+      p.wins = 0; p.fails = 0;
+      s.today = null;
+    });
+    render();
+    toast('Ступень выставлена');
   },
   'test-open'() { S.testDraft = defaultTestDraft(); save(); tab = 'test'; render(); },
   'test-exit'() { tab = 'today'; render(); },

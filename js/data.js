@@ -84,6 +84,17 @@ export const EXERCISES = {
       'Кулак смотрит вперёд, локоть выпрямлен, стоишь жёстко.'
     ]
   },
+  swing_2kb: {
+    name: 'Свинг двумя гирями',
+    short: 'Свинг 2г',
+    kind: 'ballistic', pattern: 'hinge', side: 'both',
+    load: 'ballistic',
+    cues: [
+      'По гире в каждой руке. Общий вес вдвое больше — стойка чуть шире, чтобы гири проходили между ног.',
+      'Спина держит вдвое больший рычаг: если поясница начинает круглиться, подход закончен.',
+      'Гири должны идти синхронно. Разъезжаются — это сигнал, что вес великоват.'
+    ]
+  },
   clean: {
     name: 'Заброс',
     short: 'Заброс',
@@ -377,19 +388,13 @@ export const TRACKS = {
   },
 
   // ABC: каждый круг в минуту.
+  // Дальняя цель самого Дэна Джона — 30 кругов за 30 минут. Лестница обязана
+  // доводить до неё, иначе программа обрывается на полпути к собственной цели.
+  // Растём кругами при неизменном весе, и только потом весом.
   abc_emom: {
-    kind: 'emom', reset: 1,
-    steps: [
-      { sets: 5, emom: 60 },
-      { sets: 6, emom: 60 },
-      { sets: 7, emom: 60 },
-      { sets: 8, emom: 60 },
-      { sets: 9, emom: 60 },
-      { sets: 10, emom: 60 },
-      { sets: 12, emom: 60 },
-      { sets: 10, emom: 50 },
-      { sets: 12, emom: 50 }
-    ]
+    kind: 'emom', reset: 2, winsNeeded: 3,
+    steps: [5, 6, 7, 8, 10, 12, 14, 16, 18, 20, 22, 24, 27, 30]
+      .map((sets, i) => ({ sets, emom: 60, label: sets === 30 ? 'цель: 30 кругов за 30 минут' : '' }))
   }
 };
 
@@ -517,7 +522,8 @@ export const PROGRAMS = {
         { ex: 'abc', track: 'abc_emom' }
       ]},
       { id: 'B', name: 'Свинги + переноски', focus: 'ballistic', slots: [
-        { ex: 'swing_2h', track: 'swing_vol' },
+        // если гири есть парой — свинг двумя, как и весь остальной комплекс
+        { ex: 'swing_2kb', track: 'swing_vol', needsPair: true, fallback: 'swing_2h' },
         { ex: 'carry_farmer', track: 'carry_time' }
       ]},
       { id: 'C', name: 'ABC', focus: 'grind', slots: [
