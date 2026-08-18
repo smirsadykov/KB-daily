@@ -1,6 +1,6 @@
 // Движок прогрессии: что делать сегодня и что менять после тренировки.
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=25';
-import { nextBell, prevBell, todayISO } from './store.js?v=25';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=26';
+import { nextBell, prevBell, todayISO } from './store.js?v=26';
 
 const DAY = 86400000;
 
@@ -62,7 +62,7 @@ function expandSets(exId, ex, step, kind, weight, mult, bells = [], track = {}, 
 
   if (kind === 'ballistic') {
     // потолок выше конца самой длинной лестницы: у A+A это 50 подходов
-    let n = clamp(Math.round(step.sets * mult), 2, 60);
+    let n = clamp(Math.round(step.sets * mult), 2, 100);
     // swapIn: столько подходов делается уже следующей гирей
     const heavier = step.swapIn ? (nextBell(weight, bells) ?? weight) : null;
     const heavyN = step.swapIn ? Math.min(step.swapIn, n) : 0;
@@ -386,6 +386,8 @@ export function fitToBudget(plan, budgetMin) {
       // программы (работа на норматив). Двигать её ради бюджета нельзя.
       // В гиревом спорте отдых между сетами задан задачей сета.
       if (it.kind === 'swap' || it.kind === 'interval') return;
+      // трек может объявить, что его отдых задан программой и не трогается
+      if (TRACKS[it.trackId]?.fixedRest) return;
       const floor = REST_FLOOR[it.kind] ?? 45;
       if ((it.rest || 0) > floor) { it.rest = Math.max(floor, it.rest - 15); changed = true; }
     });

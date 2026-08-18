@@ -88,6 +88,7 @@ for (const [pid] of Object.entries(PROGRAMS)) {
         if (p.pairs.some(pr => pr.a === i || pr.b === i)) return;
         if (it.emom) return;
         if (it.sets.length < 2) return;   // одному подходу отдыхать не между чем
+        if (TRACKS[it.trackId]?.fixedRest) return;  // отдых задан самой программой
         const f = FLOOR[it.kind] ?? 45;
         ok(it.rest >= f, `${pid}/д${d}/${budget}мин: ${it.exId} отдых ${it.rest} < пола ${f}`);
       });
