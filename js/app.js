@@ -1,17 +1,17 @@
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_HINTS } from './data.js?v=22';
-import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON } from './store.js?v=22';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel } from './data.js?v=23';
+import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON } from './store.js?v=23';
 import {
   planFor, applySession, summarizeItem, readinessMult, readinessLabel,
   waveIndex, weekIndex, wave, isDeload, acwr, streak, sessionLoad, tonnage, nextStepText, stepText, dayIndex,
   estimateMinutes, pairRealRest, paceFactor
-} from './progression.js?v=22';
-import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=22';
-import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=22';
+} from './progression.js?v=23';
+import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=23';
+import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=23';
 
 // byId должен видеть и свои записи пользователя, поэтому оборачиваем
 const byId = (id) => suppById(id, S);
-import { timer, fmt, unlockAudio } from './timer.js?v=22';
-import { barChart, gauge } from './charts.js?v=22';
+import { timer, fmt, unlockAudio } from './timer.js?v=23';
+import { barChart, gauge } from './charts.js?v=23';
 
 // ── Мелкие помощники ─────────────────────────────────────────────────────────
 const $ = (s, r = document) => r.querySelector(s);
@@ -326,6 +326,24 @@ function nextDaysHint(plan) {
   return `<div class="muted small" style="margin-top:8px;opacity:.8">Дальше: ${h(upcoming.join(' → '))}</div>`;
 }
 
+
+// Выбор тяжести словами, а не числом. Все варианты видно сразу — человек
+// сравнивает формулировки между собой, а не гадает, что значит «семёрка».
+function rpePicker(value, act, extra = '') {
+  return `
+  <div style="display:flex;flex-direction:column;gap:6px">
+    ${RPE_SCALE.map(o => `
+      <button class="set ${o.v === value ? 'done' : ''}" style="width:100%;text-align:left;cursor:pointer"
+              data-act="${act}" data-v="${o.v}"${extra}>
+        <div class="set-main">
+          <div class="set-title">${h(o.label)}</div>
+          <div class="set-sub">${h(o.hint)}</div>
+        </div>
+        <div class="set-n" style="width:auto">${o.v === value ? '✓' : ''}</div>
+      </button>`).join('')}
+  </div>`;
+}
+
 function viewSession(plan) {
   const totalSets = plan.items.reduce((a, i) => a + i.sets.length, 0);
   const doneSets = plan.items.reduce((a, i) => a + i.sets.filter(s => s.done).length, 0);
@@ -510,7 +528,7 @@ function viewTest() {
       </div>`).join('')}
 
     ${prev ? `<div class="card tight"><span class="pill">прошлый тест</span>
-      <div class="muted small mt mb0">${prettyDate(prev.date)}: жим ${prev.results.press.reps} повт · махи RPE ${prev.results.swing.rpe} · присед ${prev.results.squat.reps} повт · переноска ${prev.results.carry.sec} сек</div></div>` : ''}
+      <div class="muted small mt mb0">${prettyDate(prev.date)}: жим ${prev.results.press.reps} повт · махи ${h(rpeLabel(prev.results.swing.rpe).toLowerCase())} · присед ${prev.results.squat.reps} повт · переноска ${prev.results.carry.sec} сек</div></div>` : ''}
 
     <button class="btn" data-act="test-next">Начать тест</button>
     <button class="btn line mt" data-act="test-exit">Не сейчас</button>
@@ -560,9 +578,7 @@ function viewTest() {
     ${t.input === 'reps' ? counter(stage, 'reps', val.reps, 0, t.cap, plural(val.reps, 'повтор', 'повтора', 'повторов')) : ''}
     ${t.input === 'sec' ? counter(stage, 'sec', val.sec, 0, t.cap, 'секунд', 5) : ''}
     ${t.input === 'rpe' ? `
-      <div class="rpe-grid">${[5, 6, 7, 8, 9, 10].map(v =>
-        `<button class="${val.rpe === v ? 'on' : ''}" data-act="test-rpe" data-v="${v}">${v}</button>`).join('')}</div>
-      <div class="muted small mt">${h(RPE_HINTS[val.rpe] || '')}</div>
+      ${rpePicker(val.rpe, 'test-rpe')}
       <div class="switch mt">
         <div><div class="sw-label">Техника дожила до конца</div><div class="sw-hint">Спина ровная, гиря не выше груди</div></div>
         <button class="sw ${val.techniqueHeld ? 'on' : ''}" data-act="test-tech"><i></i></button>
@@ -587,7 +603,7 @@ function viewTestResult() {
   <div class="card accent center">
     <div class="big-check">📋</div>
     <h2>Вот твой уровень</h2>
-    <p class="muted small mb0">Жим ${d.press.reps} повт · махи RPE ${d.swing.rpe} · присед ${d.squat.reps} повт · переноска ${d.carry.sec} сек</p>
+    <p class="muted small mb0">Жим ${d.press.reps} повт · махи ${h(rpeLabel(d.swing.rpe).toLowerCase())} · присед ${d.squat.reps} повт · переноска ${d.carry.sec} сек</p>
   </div>
 
   ${placement.warnings.length ? `<div class="card" style="border-color:var(--warn)">
@@ -614,7 +630,7 @@ function viewTestResult() {
 
   <button class="btn" data-act="test-apply">Применить и начать отсюда</button>
   <button class="btn line mt" data-act="test-back">Изменить ответы</button>
-  <p class="muted small center mt">Если первая неделя пойдёт тяжело — не терпи, ставь честный RPE. Приложение само откатит на ступень назад.</p>`;
+  <p class="muted small center mt">Если первая неделя пойдёт тяжело — не терпи. Отмечай честно, что было тяжело, и приложение само откатит на ступень назад.</p>`;
 }
 
 
@@ -841,7 +857,7 @@ function viewHistory() {
         <span class="ex-name">${h(s.dayName)}</span>
         <span class="muted small">${prettyDate(s.date)}</span>
       </div>
-      <div class="muted small">${s.entries.length} ${plural(s.entries.length, 'упражнение', 'упражнения', 'упражнений')} · ${t ? t.toLocaleString('ru-RU') + ' кг · ' : ''}${s.durationMin} мин · RPE ${s.sessionRpe}</div>
+      <div class="muted small">${s.entries.length} ${plural(s.entries.length, 'упражнение', 'упражнения', 'упражнений')} · ${t ? t.toLocaleString('ru-RU') + ' кг · ' : ''}${s.durationMin} мин · ${h(rpeLabel(s.sessionRpe).toLowerCase())}</div>
     </div>`;
   }).join('') + `
   <hr class="sep">
@@ -856,13 +872,13 @@ function sessionSheet(id) {
   if (!s) return;
   openSheet(`
     <h2>${h(s.dayName)} · ${prettyDate(s.date)}</h2>
-    <p class="muted small">${s.durationMin} мин · общий RPE ${s.sessionRpe}${s.deload ? ' · разгрузка' : ''}${s.readiness ? ` · готовность ×${readinessMult(s.readiness).toFixed(2)}` : ''}</p>
+    <p class="muted small">${s.durationMin} мин · в целом ${h(rpeLabel(s.sessionRpe).toLowerCase())}${s.deload ? ' · разгрузка' : ''}${s.readiness ? ` · готовность ×${readinessMult(s.readiness).toFixed(2)}` : ''}</p>
     <table class="tbl">
-      <tr><th>Упражнение</th><th>Сделано</th><th>RPE</th></tr>
+      <tr><th>Упражнение</th><th>Сделано</th><th>Тяжесть</th></tr>
       ${s.entries.map(e => `<tr>
         <td>${h(EXERCISES[e.exId]?.short || e.exId)}<div class="muted small">${e.weight} кг</div></td>
         <td>${e.kind === 'time' ? e.doneSec + ' сек' : e.doneReps + ' повт'}<div class="muted small">${e.doneSets}/${e.plannedSets} подх</div></td>
-        <td>${e.rpe}</td></tr>`).join('')}
+        <td>${h(rpeLabel(e.rpe).toLowerCase())}</td></tr>`).join('')}
     </table>
     ${s.notes ? `<p class="muted mt">${h(s.notes)}</p>` : ''}
     <button class="btn line mt" data-act="del-ask" data-id="${s.id}">Удалить запись</button>
@@ -1484,18 +1500,15 @@ let finishDraft = { rpe: {}, mins: 15, notes: '' };
 
 function finishSheetHTML(items, mins) {
   return `
-  <h2>Как прошло?</h2>
-  <p class="muted small">Оцени, насколько было тяжело. От этого зависит, добавлю я нагрузку или нет.</p>
+  <h2>Насколько было тяжело?</h2>
+  <p class="muted small">Ориентируйся на то, сколько ещё смог бы сделать сверху. От этого ответа зависит, добавлю я нагрузку в следующий раз или оставлю как есть — отвечай честно, занижать смысла нет.</p>
   ${items.map(({ it, sum }) => `
     <div style="margin-bottom:16px">
       <div class="row between" style="margin-bottom:6px">
         <span class="ex-name" style="font-size:15px">${h(it.name)}</span>
         <span class="pill ${sum.complete ? 'ok' : 'warn'}">${sum.doneSets}/${sum.totalSets}</span>
       </div>
-      <div class="rpe-grid">
-        ${[5, 6, 7, 8, 9, 10].map(v => `<button class="${finishDraft.rpe[it.exId] === v ? 'on' : ''}" data-act="rpe-pick" data-ex="${it.exId}" data-v="${v}">${v}</button>`).join('')}
-      </div>
-      <div class="muted small" style="margin-top:4px">${h(RPE_HINTS[finishDraft.rpe[it.exId]] || '')}</div>
+      ${rpePicker(finishDraft.rpe[it.exId], 'rpe-pick', ` data-ex="${it.exId}"`)}
     </div>`).join('')}
   <label class="field"><span>Сколько минут заняло</span><input type="number" inputmode="numeric" id="finMins" value="${mins}"></label>
   <label class="field"><span>Заметка (не обязательно)</span><textarea id="finNotes" placeholder="Например: правое плечо подтягивало"></textarea></label>
