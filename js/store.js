@@ -1,5 +1,5 @@
 // Хранилище состояния. Всё живёт в localStorage, без сервера.
-import { EXERCISES, PROGRAMS } from './data.js';
+import { EXERCISES, PROGRAMS } from './data.js?v=21';
 
 const KEY = 'kbdaily.v1';
 
@@ -43,6 +43,7 @@ export function defaultState() {
       timeBudget: 25,
       deloadEvery: 6,
       supps: [],          // какие добавки ты принимаешь
+      customSupps: [],    // свои записи: то, чего нет в каталоге
       bodyWeight: null,   // нужен только чтобы посчитать дозу кофеина в мг/кг
       warmup: true,
       cooldown: true,

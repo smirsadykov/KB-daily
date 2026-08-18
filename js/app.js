@@ -1,14 +1,17 @@
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_HINTS } from './data.js';
-import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON } from './store.js';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_HINTS } from './data.js?v=21';
+import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON } from './store.js?v=21';
 import {
   planFor, applySession, summarizeItem, readinessMult, readinessLabel,
   waveIndex, weekIndex, wave, isDeload, acwr, streak, sessionLoad, tonnage, nextStepText, stepText, dayIndex,
   estimateMinutes, pairRealRest, paceFactor
-} from './progression.js';
-import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js';
-import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, doseFor, byId } from './supplements.js';
-import { timer, fmt, unlockAudio } from './timer.js';
-import { barChart, gauge } from './charts.js';
+} from './progression.js?v=21';
+import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=21';
+import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=21';
+
+// byId должен видеть и свои записи пользователя, поэтому оборачиваем
+const byId = (id) => suppById(id, S);
+import { timer, fmt, unlockAudio } from './timer.js?v=21';
+import { barChart, gauge } from './charts.js?v=21';
 
 // ── Мелкие помощники ─────────────────────────────────────────────────────────
 const $ = (s, r = document) => r.querySelector(s);
@@ -215,7 +218,8 @@ function suppCard() {
     </div>
     <div class="muted small" style="margin-top:8px">
       ${chosen.map(id => byId(id)).filter(sp => !log[sp.id])
-        .map(sp => `${h(sp.name)}: ${h(doseFor(sp, S.settings.bodyWeight))}`).join(' · ') || 'Нажми ещё раз, чтобы снять отметку'}
+        .map(sp => { const d = doseFor(sp, S.settings.bodyWeight); return d ? `${h(sp.name)}: ${h(d)}` : h(sp.name); })
+        .join(' · ') || 'Нажми ещё раз, чтобы снять отметку'}
     </div>
   </div>`;
 }
@@ -688,6 +692,31 @@ function viewSupps() {
     }).join('')}
     ${adh !== null ? `<p class="muted small mb0 mt">Регулярность за 30 дней: ${adh}%. Для креатина, бета-аланина и омега-3 важна именно она, а не разовые приёмы.</p>` : ''}
   </div>` : ''}
+
+  <h3>Свои добавки</h3>
+  <p class="muted small" style="margin:-4px 0 8px">То, чего нет в списке выше. ${h(CUSTOM_NOTE)}</p>
+  ${(S.settings.customSupps || []).map(c => `
+    <div class="card tight">
+      <div class="row between">
+        <div class="grow">
+          <div class="ex-name">${h(c.name)}</div>
+          <div class="muted small">${h(c.dose || 'доза не указана')} · ${h(TIMING[c.timing] || TIMING.any)}</div>
+        </div>
+        <div class="row" style="gap:8px">
+          <button class="sw ${(S.settings.supps || []).includes(c.id) ? 'on' : ''}" data-act="supp-toggle" data-id="${c.id}"><i></i></button>
+          <button class="btn line sm" data-act="supp-del" data-id="${c.id}">✕</button>
+        </div>
+      </div>
+    </div>`).join('')}
+  <div class="card">
+    <label class="field"><span>Название</span><input type="text" id="cName" placeholder="например, магний"></label>
+    <label class="field"><span>Доза (не обязательно)</span><input type="text" id="cDose" placeholder="например, 400 мг"></label>
+    <label class="field"><span>Когда</span>
+      <select id="cTiming">
+        ${Object.entries(TIMING).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}
+      </select></label>
+    <button class="btn ghost" data-act="supp-add">Добавить</button>
+  </div>
 
   <details class="card tight tips" data-key="supp-useless">
     <summary>На что не тратить деньги</summary>
@@ -1329,6 +1358,26 @@ const actions = {
       if (!s.suppLog) s.suppLog = {};
       if (!s.suppLog[d]) s.suppLog[d] = {};
       s.suppLog[d][id] = !s.suppLog[d][id];
+    });
+    render();
+  },
+  'supp-add'() {
+    const name = ($('#cName')?.value || '').trim();
+    if (!name) { toast('Впиши название'); return; }
+    const id = 'own_' + Date.now();
+    const item = { id, name, dose: ($('#cDose')?.value || '').trim(), timing: $('#cTiming')?.value || 'any' };
+    update(s => {
+      s.settings.customSupps = [...(s.settings.customSupps || []), item];
+      s.settings.supps = [...(s.settings.supps || []), id];   // сразу включаем: раз добавил — значит пьёшь
+    });
+    render();
+    toast('Добавил');
+  },
+  'supp-del'(el) {
+    const id = el.dataset.id;
+    update(s => {
+      s.settings.customSupps = (s.settings.customSupps || []).filter(c => c.id !== id);
+      s.settings.supps = (s.settings.supps || []).filter(x => x !== id);
     });
     render();
   },

@@ -158,4 +158,20 @@ export function doseFor(supp, bodyWeight) {
   return `${Math.round(lo * bodyWeight)}–${Math.round(hi * bodyWeight)} мг за 45–60 минут до нагрузки`;
 }
 
-export function byId(id) { return SUPPLEMENTS.find(s => s.id === id); }
+// Свои добавки: то, чего нет в списке (магний, витамины группы B, что угодно).
+// Приложение за них не ручается и это прямо написано — но вести учёт
+// человек должен того, что реально пьёт, а не того, что я счёл достойным.
+export const CUSTOM_NOTE = 'Твоя запись. Приложение не оценивает её эффективность — оно просто помогает не забывать.';
+
+export function allSupplements(state) {
+  const custom = (state?.settings?.customSupps || []).map(c => ({
+    ...c, tier: 'own', custom: true, daily: c.daily !== false,
+    what: '', why: CUSTOM_NOTE, safety: '', myth: ''
+  }));
+  return [...SUPPLEMENTS, ...custom];
+}
+
+export function byId(id, state) {
+  return SUPPLEMENTS.find(s => s.id === id) ||
+    (state?.settings?.customSupps || []).map(c => ({ ...c, custom: true, daily: c.daily !== false })).find(c => c.id === id);
+}
