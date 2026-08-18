@@ -42,6 +42,8 @@ export function defaultState() {
       startDate: todayISO(),
       timeBudget: 25,
       deloadEvery: 6,
+      supps: [],          // какие добавки ты принимаешь
+      bodyWeight: null,   // нужен только чтобы посчитать дозу кофеина в мг/кг
       warmup: true,
       cooldown: true,
       tgu: false,
@@ -53,6 +55,7 @@ export function defaultState() {
     progress,
     sessions: [],
     tests: [],
+    suppLog: {},        // { 'ГГГГ-ММ-ДД': { creatine: true, ... } }
     today: null,
     testDraft: null
   };
@@ -89,6 +92,7 @@ function migrate(s) {
   if (!PROGRAMS[merged.settings.programId]) merged.settings.programId = 'daily_min';
   merged.sessions = Array.isArray(s.sessions) ? s.sessions : [];
   merged.tests = Array.isArray(s.tests) ? s.tests : [];
+  merged.suppLog = (s.suppLog && typeof s.suppLog === 'object') ? s.suppLog : {};
   return merged;
 }
 

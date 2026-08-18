@@ -6,6 +6,7 @@ import {
   estimateMinutes, pairRealRest, paceFactor
 } from './progression.js';
 import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js';
+import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, doseFor, byId } from './supplements.js';
 import { timer, fmt, unlockAudio } from './timer.js';
 import { barChart, gauge } from './charts.js';
 
@@ -47,6 +48,7 @@ function render() {
   if (!S.onboarded) { screen.innerHTML = viewOnboarding(); setTop('Настроим под тебя', ''); return; }
   if (tab === 'today') { screen.innerHTML = viewToday(); }
   if (tab === 'test') { screen.innerHTML = viewTest(); }
+  if (tab === 'supps') { screen.innerHTML = viewSupps(); }
   if (tab === 'timer') { screen.innerHTML = viewTimer(); }
   if (tab === 'history') { screen.innerHTML = viewHistory(); }
   if (tab === 'progress') { screen.innerHTML = viewProgress(); }
@@ -129,8 +131,33 @@ function viewToday() {
       </div>
     </div>` : '';
 
-  if (preview.isRest) return banner + viewRestDay(preview);
-  return banner + viewReadiness(preview, w);
+  if (preview.isRest) return banner + viewRestDay(preview) + suppCard();
+  return banner + viewReadiness(preview, w) + suppCard();
+}
+
+
+// Компактная карточка добавок на главном экране: если их не видно каждый день,
+// регулярность теряется, а для креатина и бета-аланина важна именно она.
+function suppCard() {
+  const chosen = (S.settings.supps || []).filter(id => byId(id));
+  if (!chosen.length) return '';
+  const log = suppsToday();
+  const left = chosen.filter(id => !log[id]);
+  return `
+  <div class="card tight">
+    <div class="row between" style="margin-bottom:${left.length ? '8px' : '0'}">
+      <div class="grow"><div class="ex-name" style="font-size:15px">Добавки на сегодня</div>
+      <div class="muted small">${left.length ? `осталось ${left.length} из ${chosen.length}` : 'всё принято'}</div></div>
+      ${left.length ? '' : '<span class="pill ok">✓</span>'}
+    </div>
+    ${left.map(id => {
+      const sp = byId(id);
+      return `<div class="row between" style="padding:4px 0">
+        <div class="grow small">${h(sp.name)} <span class="muted">· ${h(TIMING[sp.timing])}</span></div>
+        <button class="btn ghost sm" data-act="supp-take" data-id="${id}">Принял</button>
+      </div>`;
+    }).join('')}
+  </div>`;
 }
 
 function viewRestDay(plan) {
@@ -264,6 +291,7 @@ function viewSession(plan) {
     <ul class="cues">${plan.cooldown.map(w => `<li>${h(EXERCISES[w.ex].name)} — ${w.reps}${w.note ? ' ' + h(w.note) : ''}</li>`).join('')}</ul>
   </details>` : ''}
 
+  ${suppCard()}
   <button class="btn" data-act="finish">Завершить тренировку</button>
   <button class="btn line mt" data-act="abort">Отменить и вернуться</button>`;
 }
@@ -524,6 +552,109 @@ function viewTestResult() {
   <p class="muted small center mt">Если первая неделя пойдёт тяжело — не терпи, ставь честный RPE. Приложение само откатит на ступень назад.</p>`;
 }
 
+
+// ── Экран «Добавки» ──────────────────────────────────────────────────────────
+function suppsToday() {
+  const d = todayISO();
+  return (S.suppLog && S.suppLog[d]) || {};
+}
+
+function suppAdherence(days = 30) {
+  const enabled = (S.settings.supps || []).filter(id => byId(id)?.daily);
+  if (!enabled.length) return null;
+  let taken = 0, total = 0;
+  for (let i = 0; i < days; i++) {
+    const d = todayISO(new Date(Date.now() - i * 86400000));
+    const log = (S.suppLog || {})[d] || {};
+    for (const id of enabled) { total++; if (log[id]) taken++; }
+  }
+  return total ? Math.round(taken / total * 100) : null;
+}
+
+function viewSupps() {
+  setTop('Добавки', 'Что реально работает и что ты принял');
+  const chosen = S.settings.supps || [];
+  const log = suppsToday();
+  const adh = suppAdherence();
+  const groups = { A: [], B: [], C: [] };
+  for (const sp of SUPPLEMENTS) groups[sp.tier].push(sp);
+
+  return `
+  <div class="card">
+    <p class="muted small mb0">${h(DIET_FIRST)}</p>
+  </div>
+
+  ${chosen.length ? `
+  <h3>Сегодня</h3>
+  <div class="card">
+    ${chosen.map(id => {
+      const sp = byId(id); if (!sp) return '';
+      const done = !!log[id];
+      return `<div class="set ${done ? 'done' : ''}" style="margin-bottom:8px">
+        <div class="set-main">
+          <div class="set-title">${h(sp.name)}</div>
+          <div class="set-sub">${h(doseFor(sp, S.settings.bodyWeight))} · ${h(TIMING[sp.timing])}</div>
+        </div>
+        <button class="set-do" data-act="supp-take" data-id="${id}">${done ? '✓ принял' : 'Отметить'}</button>
+      </div>`;
+    }).join('')}
+    ${adh !== null ? `<p class="muted small mb0 mt">Регулярность за 30 дней: ${adh}%. Для креатина, бета-аланина и омега-3 важна именно она, а не разовые приёмы.</p>` : ''}
+  </div>` : ''}
+
+  ${['A', 'B', 'C'].map(tier => `
+    <h3>${TIERS[tier].label}</h3>
+    <p class="muted small" style="margin:-4px 0 8px">${h(TIERS[tier].note)}</p>
+    ${groups[tier].map(sp => {
+      const on = chosen.includes(sp.id);
+      return `
+      <div class="card tight">
+        <div class="row between">
+          <div class="grow">
+            <div class="ex-name">${h(sp.name)}</div>
+            <div class="muted small">${h(doseFor(sp, S.settings.bodyWeight))}</div>
+          </div>
+          ${tier === 'C' ? `<span class="pill bad">не стоит</span>`
+            : `<button class="sw ${on ? 'on' : ''}" data-act="supp-toggle" data-id="${sp.id}"><i></i></button>`}
+        </div>
+        <details class="tips">
+          <summary>Подробнее</summary>
+          <ul class="cues">
+            <li><b>Что делает:</b> ${h(sp.what)}</li>
+            <li><b>Почему в списке:</b> ${h(sp.why)}</li>
+            ${sp.doseNote ? `<li><b>Про дозу:</b> ${h(sp.doseNote)}</li>` : ''}
+            <li><b>Осторожно:</b> ${h(sp.safety)}</li>
+            <li><b>Частое заблуждение:</b> ${h(sp.myth)}</li>
+          </ul>
+        </details>
+      </div>`;
+    }).join('')}`).join('')}
+
+  <h3>Вес тела</h3>
+  <div class="card">
+    <label class="field"><span>Нужен только чтобы посчитать дозу кофеина в мг на кг</span>
+      <input type="number" inputmode="numeric" id="bw" value="${S.settings.bodyWeight || ''}" placeholder="например 92"></label>
+    <button class="btn ghost sm" data-act="supp-weight">Сохранить</button>
+  </div>
+
+  <h3>Если выступаешь</h3>
+  <div class="card" style="border-color:var(--warn)">
+    <p class="muted small mb0">${h(DOPING_WARNING)}</p>
+  </div>
+
+  <h3>Источники</h3>
+  <div class="card">
+    ${SOURCES.map(x => `<div style="margin-bottom:12px">
+      <a href="${x.url}" target="_blank" rel="noopener">${h(x.title)}</a>
+      <div class="muted small">${h(x.note)}</div>
+    </div>`).join('')}
+    <p class="muted small mb0">Здесь ничего не выдумано: состав списка и дозировки взяты из этих работ. Что не попало ни в один источник — в списке помечено как «не стоит».</p>
+  </div>
+
+  <div class="card">
+    <p class="muted small mb0">Это не медицинская рекомендация. Витамин D подбирается по анализу крови, а не по самочувствию; при болезнях почек, печени и при приёме лекарств добавки обсуждают с врачом.</p>
+  </div>`;
+}
+
 // ── Экран «Таймер» ───────────────────────────────────────────────────────────
 let timerCfg = { work: 60, rounds: 10 };
 
@@ -757,6 +888,17 @@ function viewSettings() {
       <button class="btn ghost sm" data-act="test-open">${(S.tests || []).length ? 'Перетестироваться' : 'Пройти'}</button>
     </div>
     <p class="muted small mt mb0">Определяет рабочие веса и стартовые ступени за одну сессию. Имеет смысл повторять раз в 8–12 недель или после перерыва.</p>
+  </div>
+
+  <h3>Добавки</h3>
+  <div class="card tap" role="button" tabindex="0" data-act="supps-open">
+    <div class="row between">
+      <div class="grow">
+        <div class="sw-label">Витамины и добавки</div>
+        <div class="sw-hint">${(S.settings.supps || []).length ? 'принимаешь: ' + (S.settings.supps || []).length : 'что работает по данным МОК и ISSN'}</div>
+      </div>
+      <span class="pill accent">→</span>
+    </div>
   </div>
 
   <h3>Гири в наличии</h3>
@@ -1076,6 +1218,31 @@ const actions = {
   deload(el) {
     update(s => { s.settings.deloadEvery = +el.dataset.v; s.today = null; });
     render();
+  },
+  'supps-open'() { tab = 'supps'; render(); },
+  'supp-toggle'(el) {
+    const id = el.dataset.id;
+    update(s => {
+      const cur = s.settings.supps || [];
+      s.settings.supps = cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id];
+    });
+    render();
+  },
+  'supp-take'(el) {
+    const id = el.dataset.id;
+    const d = todayISO();
+    update(s => {
+      if (!s.suppLog) s.suppLog = {};
+      if (!s.suppLog[d]) s.suppLog[d] = {};
+      s.suppLog[d][id] = !s.suppLog[d][id];
+    });
+    render();
+  },
+  'supp-weight'() {
+    const v = +($('#bw')?.value || 0);
+    update(s => { s.settings.bodyWeight = v > 0 ? v : null; });
+    render();
+    toast(v > 0 ? 'Дозу кофеина посчитаю по весу' : 'Вес убран');
   },
   'test-open'() { S.testDraft = defaultTestDraft(); save(); tab = 'test'; render(); },
   'test-exit'() { tab = 'today'; render(); },
