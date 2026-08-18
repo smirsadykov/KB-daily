@@ -163,3 +163,30 @@ for (const [pid] of Object.entries(PROGRAMS)) {
 console.log(`  всего проверок ${checks}, провалов ${fails}`);
 
 console.log(`\n${'='.repeat(50)}\nИТОГО: ${checks} проверок, ${fails} провалов`);
+
+console.log('\n=== 8. Пол отдыха действует и внутри пар ===');
+{
+  const { pairRealRest } = await import('../js/progression.js');
+  const F = { ballistic: 30, reps: 45, time: 30 };
+  for (const [pid] of Object.entries(PROGRAMS)) {
+    for (const budget of [15, 20, 25, 30]) {
+      for (const step of [0, 5, 11]) {
+        const st = mkState({ settings: { programId: pid, timeBudget: budget }, step });
+        for (let d = 0; d < PROGRAMS[pid].days.length; d++) {
+          const p = planFor(st, today, null, d);
+          if (p.isRest) continue;
+          for (const pr of p.pairs) {
+            const real = pairRealRest(p, pr);
+            for (const [it, got] of [[p.items[pr.a], real.a], [p.items[pr.b], real.b]]) {
+              if (it.kind === 'ladder') continue;
+              const f = F[it.kind] ?? 45;
+              ok(got >= f, `${pid}/д${d}/${budget}мин: ${it.exId} в паре получает ${got} сек < пола ${f}`);
+            }
+          }
+        }
+      }
+    }
+  }
+}
+console.log(`  всего проверок ${checks}, провалов ${fails}`);
+console.log(`\nФИНАЛ: ${checks} проверок, ${fails} провалов`);

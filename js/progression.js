@@ -338,6 +338,23 @@ export function fitToBudget(plan, budgetMin) {
     if (!changed) break;
   }
 
+  // Пол отдыха должен работать и внутри пар, иначе пара его молча обходит.
+  // Исключение — лестницы: короткий отдых между ступенями это их суть
+  // (в традиции ступени разделяет ровно то время, пока работает напарник),
+  // а полноценный отдых нужен между лестницами целиком.
+  for (const p of plan.pairs) {
+    let guard2 = 0;
+    while (guard2++ < 20) {
+      const real = pairRealRest(plan, p);
+      const need = [[plan.items[p.a], real.a], [plan.items[p.b], real.b]]
+        .some(([it, got]) => it.kind !== 'ladder' && got < (REST_FLOOR[it.kind] ?? 45));
+      if (!need) break;
+      // добавить отдых нельзя без места во времени — тогда снимаем круг
+      if (!dropRound(plan.items[p.a]) && !dropRound(plan.items[p.b])) break;
+      p.order = interleave(plan.items[p.a].sets.length, plan.items[p.b].sets.length);
+    }
+  }
+
   // Пересобираем подписи и чередование после всех урезаний,
   // иначе на экране останутся числа из исходного плана
   for (const it of plan.items) refreshScheme(it);
