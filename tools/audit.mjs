@@ -77,7 +77,7 @@ for (const [pid] of Object.entries(PROGRAMS)) {
 console.log(`  всего проверок ${checks}, провалов ${fails}`);
 
 console.log('\n=== 4. Отдых не проваливается ниже пола ===');
-const FLOOR = { ballistic: 30, ladder: 45, reps: 45, time: 30 };
+const FLOOR = { ballistic: 30, ladder: 45, reps: 45, time: 30, swap: 60, interval: 120 };
 for (const [pid] of Object.entries(PROGRAMS)) {
   for (const budget of [15, 20, 25]) {
     const st = mkState({ settings: { programId: pid, timeBudget: budget }, step: 8 });
@@ -87,6 +87,7 @@ for (const [pid] of Object.entries(PROGRAMS)) {
       p.items.forEach((it, i) => {
         if (p.pairs.some(pr => pr.a === i || pr.b === i)) return;
         if (it.emom) return;
+        if (it.sets.length < 2) return;   // одному подходу отдыхать не между чем
         const f = FLOOR[it.kind] ?? 45;
         ok(it.rest >= f, `${pid}/д${d}/${budget}мин: ${it.exId} отдых ${it.rest} < пола ${f}`);
       });
@@ -100,31 +101,41 @@ console.log('\n=== 5. Прогрессия ===');
   const st = mkState();
   st.progress.swing_1h = { weight: 24, step: 0, wins: 0, fails: 0 };
   const good = { deload: false, entries: [{ exId: 'swing_1h', trackId: 'swing_vol', complete: true, rpe: 7 }] };
+  const need = TRACKS.swing_vol.winsNeeded ?? 2;
+  ok(need >= 3, 'основное движение должно требовать не меньше трёх удачных тренировок на шаг');
+  for (let i = 1; i < need; i++) {
+    applySession(st, good);
+    ok(st.progress.swing_1h.steps.swing_vol === 0, `${i} удачных из ${need} не должны двигать шаг`);
+  }
   applySession(st, good);
-  ok(st.progress.swing_1h.step === 0 && st.progress.swing_1h.wins === 1, 'одна удачная не должна двигать шаг');
-  applySession(st, good);
-  ok(st.progress.swing_1h.step === 1, 'две удачных должны дать шаг вперёд');
+  ok(st.progress.swing_1h.steps.swing_vol === 1, `${need} удачных должны дать шаг вперёд`);
 
+  const last = TRACKS.swing_vol.steps.length - 1;
   const st2 = mkState();
-  st2.progress.swing_1h = { weight: 24, step: 8, wins: 1, fails: 0 };
+  st2.progress.swing_1h = { weight: 24, step: last, steps: { swing_vol: last }, wins: need - 1, fails: 0 };
   applySession(st2, good);
-  ok(st2.progress.swing_1h.weight === 32 && st2.progress.swing_1h.step === TRACKS.swing_vol.reset,
-     `с последнего шага должен быть переход на 32 кг, получили ${st2.progress.swing_1h.weight}/шаг ${st2.progress.swing_1h.step}`);
+  ok(st2.progress.swing_1h.weight === 32 && st2.progress.swing_1h.steps.swing_vol === TRACKS.swing_vol.reset,
+     `с последнего шага должен быть переход на 32 кг, получили ${st2.progress.swing_1h.weight}/шаг ${st2.progress.swing_1h.steps.swing_vol}`);
+
+  // смена гири должна быть постепенной, а не прыжком
+  const swapSteps = TRACKS.swing_vol.steps.filter(x => x.swapIn);
+  ok(swapSteps.length >= 4, 'перед сменой гири должны быть ступени постепенной замены подходов');
+  ok(swapSteps[swapSteps.length - 1].swapIn === 10, 'последняя ступень замены должна переводить все подходы на новый вес');
 
   const st3 = mkState();
-  st3.progress.swing_1h = { weight: 24, step: 4, wins: 1, fails: 0 };
+  st3.progress.swing_1h = { weight: 24, step: 4, steps: { swing_vol: 4 }, wins: 1, fails: 0 };
   applySession(st3, { deload: true, entries: [{ exId: 'swing_1h', trackId: 'swing_vol', complete: true, rpe: 6 }] });
-  ok(st3.progress.swing_1h.step === 4 && st3.progress.swing_1h.wins === 1, 'на разгрузке шаг не двигается и счётчик не сбрасывается');
+  ok(st3.progress.swing_1h.steps.swing_vol === 4 && st3.progress.swing_1h.wins === 1, 'на разгрузке шаг не двигается и счётчик не сбрасывается');
 
   const st4 = mkState();
-  st4.progress.swing_1h = { weight: 24, step: 3, wins: 0, fails: 1 };
+  st4.progress.swing_1h = { weight: 24, step: 3, steps: { swing_vol: 3 }, wins: 0, fails: 1 };
   applySession(st4, { deload: false, entries: [{ exId: 'swing_1h', trackId: 'swing_vol', complete: false, rpe: 9 }] });
-  ok(st4.progress.swing_1h.step === 2, 'две неудачных должны откатить шаг');
+  ok(st4.progress.swing_1h.steps.swing_vol === 2, 'две неудачных должны откатить шаг');
 
   const st5 = mkState();
-  st5.progress.swing_1h = { weight: 24, step: 2, wins: 1, fails: 0 };
+  st5.progress.swing_1h = { weight: 24, step: 2, steps: { swing_vol: 2 }, wins: 1, fails: 0 };
   applySession(st5, { deload: false, entries: [{ exId: 'swing_1h', trackId: 'swing_vol', complete: true, rpe: 8 }] });
-  ok(st5.progress.swing_1h.wins === 1 && st5.progress.swing_1h.step === 2, 'RPE 8 — стоим на месте, счётчик не должен сбрасываться');
+  ok(st5.progress.swing_1h.wins === 1 && st5.progress.swing_1h.steps.swing_vol === 2, 'RPE 8 — стоим на месте, счётчик не должен сбрасываться');
 }
 console.log(`  всего проверок ${checks}, провалов ${fails}`);
 
@@ -167,7 +178,7 @@ console.log(`\n${'='.repeat(50)}\nИТОГО: ${checks} проверок, ${fail
 console.log('\n=== 8. Пол отдыха действует и внутри пар ===');
 {
   const { pairRealRest } = await import('../js/progression.js');
-  const F = { ballistic: 30, reps: 45, time: 30 };
+  const F = { ballistic: 30, reps: 45, time: 30, swap: 60, interval: 120 };
   for (const [pid] of Object.entries(PROGRAMS)) {
     for (const budget of [15, 20, 25, 30]) {
       for (const step of [0, 5, 11]) {

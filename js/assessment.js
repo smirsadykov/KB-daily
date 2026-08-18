@@ -157,6 +157,8 @@ export function applyPlacement(state, placement) {
       ? it.weight
       : state.settings.bells.reduce((b, x) => Math.abs(x - it.weight) < Math.abs(b - it.weight) ? x : b, state.settings.bells[0]);
     p.weight = weight;
+    if (!p.steps) p.steps = {};
+    p.steps[it.trackId] = it.step;
     p.step = it.step;
     p.wins = 0;
     p.fails = 0;

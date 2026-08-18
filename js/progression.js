@@ -1,5 +1,5 @@
 // Движок прогрессии: что делать сегодня и что менять после тренировки.
-import { EXERCISES, PROGRAMS, TRACKS, WAVE, WARMUP, COOLDOWN } from './data.js';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js';
 import { nextBell, prevBell, todayISO } from './store.js';
 
 const DAY = 86400000;
@@ -10,12 +10,20 @@ export function daysSince(startISO, dateISO) {
   return Math.max(0, Math.round((b - a) / DAY));
 }
 
+export function weekIndex(state, dateISO = todayISO()) {
+  return Math.floor(daysSince(state.settings.startDate, dateISO) / 7);
+}
+
+export function wave(state, dateISO = todayISO()) {
+  return waveFor(weekIndex(state, dateISO), state.settings.deloadEvery ?? 6);
+}
+
 export function waveIndex(state, dateISO = todayISO()) {
-  return Math.floor(daysSince(state.settings.startDate, dateISO) / 7) % 4;
+  return wave(state, dateISO).index;
 }
 
 export function isDeload(state, dateISO = todayISO()) {
-  return waveIndex(state, dateISO) === 3;
+  return wave(state, dateISO).deload;
 }
 
 export function dayIndex(state, dateISO = todayISO()) {
@@ -47,18 +55,21 @@ export function readinessLabel(r) {
 // ── Построение тренировки ────────────────────────────────────────────────────
 function clamp(n, lo, hi) { return Math.max(lo, Math.min(hi, n)); }
 
-function expandSets(exId, ex, step, kind, weight, mult) {
+function expandSets(exId, ex, step, kind, weight, mult, bells = [], track = {}) {
   const sets = [];
   const push = (o) => sets.push({ id: sets.length, weight, done: false, ...o });
   const sideFor = (i) => ex.side === 'each' ? (i % 2 === 0 ? 'L' : 'R') : null;
 
   if (kind === 'ballistic') {
     let n = clamp(Math.round(step.sets * mult), 2, 14);
+    // swapIn: столько подходов делается уже следующей гирей
+    const heavier = step.swapIn ? (nextBell(weight, bells) ?? weight) : null;
+    const heavyN = step.swapIn ? Math.min(step.swapIn, n) : 0;
     // при работе на каждую сторону подходов должно быть чётное число,
     // иначе одна рука получит больше работы
     if (ex.side === 'each' && n % 2 !== 0) n += 1;
-    for (let i = 0; i < n; i++) push({ reps: step.reps, side: sideFor(i) });
-    return { sets, rest: step.rest, emom: step.emom || null };
+    for (let i = 0; i < n; i++) push({ reps: step.reps, side: sideFor(i), weight: i < heavyN ? heavier : weight });
+    return { sets, rest: step.rest, emom: step.emom || null, heavy: heavyN };
   }
   if (kind === 'ladder') {
     const n = clamp(Math.round(step.ladders * mult), 1, 7);
@@ -86,6 +97,31 @@ function expandSets(exId, ex, step, kind, weight, mult) {
     }
     return { sets, rest: step.rest, emom: null };
   }
+  // Замена по одному подходу (Simple & Sinister): объём фиксирован,
+  // растёт доля подходов, сделанных целевой гирей. Остальные — предыдущей.
+  if (kind === 'swap') {
+    const total = track.sets || 10;
+    const lighter = prevBell(weight, bells) ?? weight;
+    // на плохой день сначала убираем тяжёлые подходы, а не объём
+    let heavy = clamp(Math.round((step.heavy ?? 0) * Math.min(mult, 1)), 0, total);
+    let n = total;
+    if (mult < 0.7) { n = Math.max(4, Math.round(total * mult)); heavy = Math.min(heavy, n); }
+    if (ex.side === 'each' && n % 2 !== 0) n += 1;
+    for (let i = 0; i < n; i++) {
+      push({ reps: track.reps ?? 10, side: sideFor(i), weight: i < heavy ? weight : lighter });
+    }
+    return { sets, rest: step.rest ?? 60, emom: step.interval || null, heavy, total: n };
+  }
+
+  // Гиревой спорт: сет задаётся временем и темпом подъёмов в минуту
+  if (kind === 'interval') {
+    const n = clamp(Math.round(step.sets * mult), 1, 6);
+    for (let i = 0; i < n; i++) {
+      push({ sec: step.min * 60, rpm: step.rpm, reps: Math.round(step.min * step.rpm), gs: true });
+    }
+    return { sets, rest: step.rest, emom: null };
+  }
+
   if (kind === 'emom') {
     let n = clamp(Math.round(step.sets * mult), 2, 16);
     // как и в баллистике: при работе на каждую сторону кругов должно быть чётное
@@ -111,11 +147,17 @@ function schemeText(kind, step, item) {
   // иначе «3 × 45 сек на сторону» превращается в мнимые «6 × 45 сек»
   const sides = item.sets.some(s => s.side) ? 2 : 1;
   const perSide = sides === 2 ? ' на сторону' : '';
-  if (kind === 'ballistic') return `${item.sets.length} × ${step.reps}`;
+  if (kind === 'ballistic') return `${item.sets.length} × ${step.reps}` + (item.heavy ? `, из них ${item.heavy} новым весом` : '');
   if (kind === 'ladder') return `${item.ladders} ${ladderWord(item.ladders)} ${step.rungs.join('-')}`;
   if (kind === 'reps') return `${item.sets.length / sides} × ${step.reps}${perSide}`;
   if (kind === 'time') return `${item.sets.length / sides} × ${step.sec} сек${perSide}`;
   if (kind === 'emom') return `${item.sets.length} кругов, каждые ${step.emom} сек`;
+  if (kind === 'swap') {
+    const base = `${item.sets.length} × ${step.reps ?? 10}`;
+    if (step.interval) return `${base} · ${step.label || 'на время'}`;
+    return item.heavy > 0 ? `${base}, из них ${item.heavy} целевым весом` : base;
+  }
+  if (kind === 'interval') return `${item.sets.length} × ${step.min} мин @ ${step.rpm} подъёмов в минуту`;
   return '';
 }
 
@@ -140,6 +182,8 @@ const SET_WORK = (item, s) => {
   if (item.kind === 'reps') return (s.reps || 0) * 3 + 5;
   if (item.kind === 'time') return (s.sec || 0) + 5;            // взять и поставить гири
   if (item.kind === 'emom') return item.emom || 60;
+  if (item.kind === 'swap') return (s.reps || 0) * (s.reps > 5 ? 1.5 : 12) + 5;  // махи против подъёмов
+  if (item.kind === 'interval') return (s.sec || 0) + 10;
   return 30;
 };
 
@@ -148,7 +192,7 @@ const SWITCH = 20;
 
 // Ниже этих значений отдых перестаёт быть отдыхом: жим превращается
 // в выносливость, а махи — в кашу по технике.
-const REST_FLOOR = { ballistic: 30, ladder: 45, reps: 45, time: 30, emom: 0 };
+const REST_FLOOR = { ballistic: 30, ladder: 45, reps: 45, time: 30, emom: 0, swap: 30, interval: 120 };
 
 export function estimateSeconds(plan) {
   let sec = plan.warmup.length ? 240 : 0;
@@ -223,6 +267,9 @@ function canPair(a, b) {
   if (!a || !b) return false;
   if (a.kind === 'emom' || b.kind === 'emom') return false;
   if (a.kind === 'time' || b.kind === 'time') return false;
+  // в гиревом спорте сет задан временем и темпом, в S&S объём фиксирован
+  // программой — пары там ломают саму суть, а не экономят время
+  if (['interval', 'swap'].includes(a.kind) || ['interval', 'swap'].includes(b.kind)) return false;
   const pa = EXERCISES[a.exId]?.pattern, pb = EXERCISES[b.exId]?.pattern;
   return pa && pb && pa !== pb;
 }
@@ -242,6 +289,9 @@ function interleave(aLen, bLen) {
 }
 
 function dropRound(item) {
+  // объём S&S и длительность сета в гиревом спорте — это и есть программа,
+  // резать их ради минут значит подменить её другой программой
+  if (item.kind === 'swap' || item.kind === 'interval') return false;
   // снимаем не отдельный подход, а целый круг: лестницу целиком
   // или пару подходов на левую и правую, иначе стороны разъедутся
   if (item.kind === 'ladder' && item.rungs) {
@@ -264,11 +314,18 @@ function refreshScheme(item) {
   const first = item.sets[0];
   if (!first) { item.scheme = '—'; return; }
   const perSide = sides === 2 ? ' на сторону' : '';
-  if (item.kind === 'ballistic') item.scheme = `${item.sets.length} × ${first.reps}`;
+  if (item.kind === 'ballistic') item.scheme = `${item.sets.length} × ${first.reps}` + (item.heavy ? `, из них ${item.heavy} новым весом` : '');
   else if (item.kind === 'ladder') item.scheme = `${item.ladders} ${ladderWord(item.ladders)} ${(item.rungs || []).join('-')}`;
   else if (item.kind === 'reps') item.scheme = `${item.sets.length / sides} × ${first.reps}${perSide}`;
   else if (item.kind === 'time') item.scheme = `${item.sets.length / sides} × ${first.sec} сек${perSide}`;
   else if (item.kind === 'emom') item.scheme = `${item.sets.length} кругов`;
+  else if (item.kind === 'swap') {
+    const base = `${item.sets.length} × ${first.reps}`;
+    // на ступени норматива важен режим времени, а не сколько подходов целевым весом
+    item.scheme = item.emom ? `${base} · ${item.label || 'на время'}`
+                : item.heavy > 0 ? `${base}, из них ${item.heavy} целевым весом` : base;
+  }
+  else if (item.kind === 'interval') item.scheme = `${item.sets.length} × ${Math.round(first.sec / 60)} мин @ ${first.rpm}`;
 }
 
 export function fitToBudget(plan, budgetMin) {
@@ -300,6 +357,10 @@ export function fitToBudget(plan, budgetMin) {
     }
     plan.items.forEach((it, i) => {
       if (plan.pairs.some(p => p.a === i || p.b === i)) return;
+      // В S&S сокращение отдыха — это не экономия времени, а следующая ступень
+      // программы (работа на норматив). Двигать её ради бюджета нельзя.
+      // В гиревом спорте отдых между сетами задан задачей сета.
+      if (it.kind === 'swap' || it.kind === 'interval') return;
       const floor = REST_FLOOR[it.kind] ?? 45;
       if ((it.rest || 0) > floor) { it.rest = Math.max(floor, it.rest - 15); changed = true; }
     });
@@ -370,11 +431,11 @@ export function planFor(state, dateISO = todayISO(), readiness = null, dayOverri
   const prog = PROGRAMS[state.settings.programId];
   const di = dayOverride != null ? dayOverride : dayIndex(state, dateISO);
   const day = prog.days[di];
-  const wi = waveIndex(state, dateISO);
-  const wave = WAVE[wi];
+  const w = wave(state, dateISO);
+  const wi = w.index;
   const rMult = readinessMult(readiness);
   const dayMult = day.mult ?? 1;
-  const mult = clamp(wave.mult * rMult * dayMult, 0.4, 1.25);
+  const mult = clamp(w.mult * rMult * dayMult, 0.4, 1.25);
 
   const items = [];
   for (const slot of day.slots) {
@@ -385,9 +446,9 @@ export function planFor(state, dateISO = todayISO(), readiness = null, dayOverri
     const ex = EXERCISES[slot.ex];
     const track = TRACKS[slot.track];
     const p = state.progress[slot.ex] || { weight: state.settings.bells[0], step: 0 };
-    const stepIdx = clamp(p.step, 0, track.steps.length - 1);
+    const stepIdx = clamp(p.steps?.[slot.track] ?? p.step ?? 0, 0, track.steps.length - 1);
     const step = track.steps[stepIdx];
-    const item = expandSets(slot.ex, ex, step, track.kind, p.weight, mult);
+    const item = expandSets(slot.ex, ex, step, track.kind, p.weight, mult, state.settings.bells, track);
     item.exId = slot.ex;
     item.trackId = slot.track;
     item.kind = track.kind;
@@ -410,9 +471,9 @@ export function planFor(state, dateISO = todayISO(), readiness = null, dayOverri
     focus: day.focus,
     note: day.note || '',
     waveIndex: wi,
-    waveName: wave.name,
-    waveHint: wave.hint,
-    deload: wi === 3,
+    waveName: w.name,
+    waveHint: w.hint,
+    deload: w.deload,
     mult: Math.round(mult * 100) / 100,
     readiness,
     warmup: state.settings.warmup ? WARMUP : [],
@@ -471,6 +532,11 @@ export function applySession(state, session) {
     const p = state.progress[entry.exId];
     const track = TRACKS[entry.trackId];
     if (!p || !track) continue;
+    // Ступень своя у каждой лестницы, вес общий у упражнения.
+    if (!p.steps) p.steps = {};
+    if (p.steps[entry.trackId] === undefined) p.steps[entry.trackId] = clamp(p.step ?? 0, 0, track.steps.length - 1);
+    const readStep = () => p.steps[entry.trackId];
+    const writeStep = (v) => { p.steps[entry.trackId] = v; p.step = v; };
     const ex = EXERCISES[entry.exId];
     const rpe = entry.rpe ?? 7;
 
@@ -491,39 +557,40 @@ export function applySession(state, session) {
       continue;
     }
 
-    if (p.wins >= 2) {
+    const winsNeeded = track.winsNeeded ?? 2;
+    if (p.wins >= winsNeeded) {
       p.wins = 0;
-      if (p.step >= track.steps.length - 1) {
+      if (readStep() >= track.steps.length - 1) {
         const nb = nextBell(p.weight, state.settings.bells);
         if (nb) {
           p.weight = nb;
-          p.step = track.reset ?? 0;
+          writeStep(track.reset ?? 0);
           changes.push({ exId: entry.exId, type: 'weight-up', text: `${ex.short}: гиря ${nb} кг! Объём сбросили, начинаем заново` });
         } else {
           changes.push({ exId: entry.exId, type: 'max', text: `${ex.short}: потолок по твоим гирям. Нужна следующая гиря` });
         }
       } else {
-        p.step += 1;
-        changes.push({ exId: entry.exId, type: 'step-up', text: `${ex.short}: шаг вперёд → ${nextStepText(entry.trackId, p.step - 1)}` });
+        writeStep(readStep() + 1);
+        changes.push({ exId: entry.exId, type: 'step-up', text: `${ex.short}: шаг вперёд → ${stepText(entry.trackId, readStep())}` });
       }
     } else if (p.fails >= 2) {
       p.fails = 0;
-      if (p.step > 0) {
-        p.step -= 1;
+      if (readStep() > 0) {
+        writeStep(readStep() - 1);
         changes.push({ exId: entry.exId, type: 'step-down', text: `${ex.short}: откатили на шаг назад, догоним` });
       } else {
         const pb = prevBell(p.weight, state.settings.bells);
         if (pb) {
           p.weight = pb;
-          p.step = Math.max(0, track.steps.length - 3);
+          writeStep(Math.max(0, track.steps.length - 3));
           changes.push({ exId: entry.exId, type: 'weight-down', text: `${ex.short}: вернулись на ${pb} кг` });
         } else {
           changes.push({ exId: entry.exId, type: 'hold', text: `${ex.short}: держим как есть` });
         }
       }
     } else {
-      const need = 2 - (p.wins || 0);
-      if (p.wins > 0) changes.push({ exId: entry.exId, type: 'progress', text: `${ex.short}: ещё ${need} такая тренировка — и шаг вперёд` });
+      const need = winsNeeded - (p.wins || 0);
+      if (p.wins > 0) changes.push({ exId: entry.exId, type: 'progress', text: `${ex.short}: ещё ${need} ${need === 1 ? 'такая тренировка' : 'такие тренировки'} — и шаг вперёд` });
       else changes.push({ exId: entry.exId, type: 'hold', text: `${ex.short}: повторим то же самое` });
     }
   }

@@ -104,6 +104,47 @@ export const EXERCISES = {
       'Если к концу минуты не успеваешь — это сигнал остановиться, а не терпеть.'
     ]
   },
+  // ── Гиревой спорт ──────────────────────────────────────────────────────────
+  // Это ДРУГАЯ дисциплина, не hardstyle. Там задача — максимум подъёмов
+  // за 10 минут, поэтому техника построена на экономии, а не на жёсткости:
+  // расслабленные плечи, отдых в стойке, хват «крюком», дыхание в такт.
+  gs_jerk: {
+    name: 'Толчок',
+    short: 'Толчок',
+    kind: 'gs', pattern: 'jerk', side: 'each',
+    load: 'ballistic',
+    cues: [
+      'Соревновательное движение: максимум подъёмов за 10 минут. Работают ноги, руки только фиксируют.',
+      'Гиря отдыхает в стойке — на этом всё и держится. Не висни на руке, найди опору на тазе.',
+      'Подсед под гирю ногами, а не дожим плечом.',
+      'Дыхание в такт движению, без задержек. Плечи расслаблены.',
+      'Техника гиревого спорта заметно отличается от hardstyle и по книжке не ставится — ищи тренера.'
+    ]
+  },
+  gs_lc: {
+    name: 'Длинный цикл',
+    short: 'ДЦ',
+    kind: 'gs', pattern: 'jerk', side: 'each',
+    load: 'ballistic',
+    cues: [
+      'Каждый повтор: заброс с виса, потом толчок. Темп ниже, чем в толчке, — движение вдвое длиннее.',
+      'Заброс делается бёдрами, гиря идёт близко к телу.',
+      'Отдых только в стойке и в висе, специально останавливаться нельзя.'
+    ]
+  },
+  gs_snatch: {
+    name: 'Рывок (спортивный стиль)',
+    short: 'Рывок ГС',
+    kind: 'gs', pattern: 'hinge', side: 'each',
+    load: 'ballistic',
+    cues: [
+      'Одна смена руки за подход — так на соревнованиях. Задача — дожить до конца сета обеими руками.',
+      'Хват «крюком», кисть расслаблена. Гиря обтекает кисть, а не бьёт по предплечью.',
+      'Наверху короткая фиксация и сразу вниз, без hardstyle-напряжения всего тела.',
+      'Если рвётся хват — сет закончен, это не повод терпеть до мозоли.'
+    ]
+  },
+
   carry_farmer: {
     name: 'Прогулка фермера',
     short: 'Фермер',
@@ -162,8 +203,12 @@ export const COOLDOWN = [
 
 export const TRACKS = {
   // Баллистика: 10 повторений в подходе — константа. Растут подходы, потом падает отдых.
+  // winsNeeded — сколько удачных тренировок подряд нужно на шаг вперёд.
+  // Для основных движений это 3, а не 2: при трёх занятиях в неделю
+  // «две подряд» дают полтора шага в неделю, и за месяц движок доводит
+  // до смены гири. В реальной практике на гирю уходят месяцы.
   swing_vol: {
-    kind: 'ballistic', reset: 1,
+    kind: 'ballistic', reset: 1, winsNeeded: 3,
     steps: [
       { sets: 5, reps: 10, rest: 75 },
       { sets: 6, reps: 10, rest: 75 },
@@ -173,11 +218,19 @@ export const TRACKS = {
       { sets: 10, reps: 10, rest: 60 },
       { sets: 10, reps: 10, rest: 45 },
       { sets: 10, reps: 10, rest: 30 },
-      { sets: 10, reps: 10, rest: 0, emom: 60, label: 'каждую минуту' }
+      { sets: 10, reps: 10, rest: 0, emom: 60, label: 'каждую минуту' },
+      // Дальше гиря меняется не прыжком: следующий вес заходит по одному
+      // подходу за раз. Прыжок 24→32 это сразу +33%, и на 100 махов
+      // такой скачок ловится не силой, а поясницей.
+      { sets: 10, reps: 10, rest: 60, swapIn: 2 },
+      { sets: 10, reps: 10, rest: 60, swapIn: 4 },
+      { sets: 10, reps: 10, rest: 60, swapIn: 6 },
+      { sets: 10, reps: 10, rest: 60, swapIn: 8 },
+      { sets: 10, reps: 10, rest: 60, swapIn: 10, label: 'вся работа новым весом' }
     ]
   },
   snatch_vol: {
-    kind: 'ballistic', reset: 1,
+    kind: 'ballistic', reset: 1, winsNeeded: 3,
     steps: [
       { sets: 5, reps: 5, rest: 75 },
       { sets: 6, reps: 5, rest: 60 },
@@ -191,7 +244,7 @@ export const TRACKS = {
   },
   // Грайнды: лестницы 1-2-3. Сначала больше лестниц, потом длиннее ступени.
   press_ladder: {
-    kind: 'ladder', reset: 0,
+    kind: 'ladder', reset: 0, winsNeeded: 3,
     steps: [
       { ladders: 3, rungs: [1, 2], rest: 60 },
       { ladders: 4, rungs: [1, 2], rest: 60 },
@@ -253,6 +306,76 @@ export const TRACKS = {
       { sets: 5, sec: 60, rest: 45 }
     ]
   },
+  // Simple & Sinister по оригиналу: объём НЕ растёт, он всегда 10×10.
+  // Растёт доля подходов с целевой гирей — «замена по одному подходу за раз».
+  // Когда все 10 подходов сделаны целевым весом, идёт работа на норматив:
+  // 100 махов за 5 минут (подход каждые 30 сек), 10 подъёмов за 10 минут.
+  sns_swing: {
+    kind: 'swap', reset: 0, sets: 10, reps: 10, winsNeeded: 3,
+    steps: [
+      ...Array.from({ length: 11 }, (_, heavy) => ({ heavy, rest: 60 })),
+      { heavy: 10, interval: 60, label: 'подход в минуту' },
+      { heavy: 10, interval: 45, label: 'подход каждые 45 сек' },
+      { heavy: 10, interval: 30, label: 'норматив: 100 махов за 5 минут' }
+    ]
+  },
+  sns_tgu: {
+    kind: 'swap', reset: 0, sets: 10, reps: 1, winsNeeded: 3,
+    steps: [
+      ...Array.from({ length: 11 }, (_, heavy) => ({ heavy, rest: 60 })),
+      { heavy: 10, interval: 75, label: 'подъём каждые 75 сек' },
+      { heavy: 10, interval: 60, label: 'норматив: 10 подъёмов за 10 минут' }
+    ]
+  },
+
+  // Гиревой спорт: набор соревновательной ёмкости.
+  // Сначала длиннее сеты на низком темпе, потом выше темп на полных 10 минутах.
+  // Ориентир для толчка — 20 подъёмов в минуту, это 200 за сет.
+  gs_jerk_cap: {
+    kind: 'interval', reset: 4,
+    steps: [
+      { sets: 5, min: 2, rpm: 10, rest: 120 },
+      { sets: 4, min: 3, rpm: 10, rest: 120 },
+      { sets: 3, min: 4, rpm: 10, rest: 150 },
+      { sets: 2, min: 5, rpm: 10, rest: 180 },
+      { sets: 2, min: 6, rpm: 12, rest: 180 },
+      { sets: 1, min: 8, rpm: 12, rest: 0 },
+      { sets: 1, min: 10, rpm: 12, rest: 0 },
+      { sets: 1, min: 10, rpm: 14, rest: 0 },
+      { sets: 1, min: 10, rpm: 16, rest: 0 },
+      { sets: 1, min: 10, rpm: 18, rest: 0 },
+      { sets: 1, min: 10, rpm: 20, rest: 0, label: 'соревновательный ориентир' }
+    ]
+  },
+  gs_snatch_cap: {
+    kind: 'interval', reset: 4,
+    steps: [
+      { sets: 5, min: 2, rpm: 12, rest: 120 },
+      { sets: 4, min: 3, rpm: 12, rest: 120 },
+      { sets: 3, min: 4, rpm: 14, rest: 150 },
+      { sets: 2, min: 5, rpm: 14, rest: 180 },
+      { sets: 2, min: 6, rpm: 16, rest: 180 },
+      { sets: 1, min: 8, rpm: 16, rest: 0 },
+      { sets: 1, min: 10, rpm: 16, rest: 0 },
+      { sets: 1, min: 10, rpm: 18, rest: 0 },
+      { sets: 1, min: 10, rpm: 20, rest: 0 },
+      { sets: 1, min: 10, rpm: 22, rest: 0, label: 'соревновательный ориентир' }
+    ]
+  },
+  gs_lc_cap: {
+    kind: 'interval', reset: 3,
+    steps: [
+      { sets: 4, min: 2, rpm: 8, rest: 150 },
+      { sets: 3, min: 3, rpm: 8, rest: 150 },
+      { sets: 3, min: 4, rpm: 9, rest: 180 },
+      { sets: 2, min: 5, rpm: 10, rest: 180 },
+      { sets: 2, min: 6, rpm: 10, rest: 210 },
+      { sets: 1, min: 8, rpm: 10, rest: 0 },
+      { sets: 1, min: 10, rpm: 10, rest: 0 },
+      { sets: 1, min: 10, rpm: 12, rest: 0, label: 'соревновательный ориентир' }
+    ]
+  },
+
   // ABC: каждый круг в минуту.
   abc_emom: {
     kind: 'emom', reset: 1,
@@ -325,41 +448,18 @@ export const PROGRAMS = {
 
   s_and_s: {
     name: 'Simple & Sinister',
-    tag: 'классика · 20–30 мин',
-    desc: '10×10 свингов одной рукой + подъёмы. Минимум упражнений, максимум повторяемости.',
-    for: 'Если хочешь довести два движения до автоматизма.',
-    origin: 'по мотивам Simple & Sinister Павла Цацулина. Отличия от оригинала: там 100 махов и 10 подъёмов каждую сессию сразу, а прогресс идёт заменой на гирю тяжелее по одному подходу и временными нормативами. Здесь объём наращивается подходами',
-    days: [
-      { id: 'S', name: 'S&S', focus: 'ballistic', slots: [
-        { ex: 'swing_1h', track: 'swing_vol' },
-        { ex: 'tgu', track: 'tgu_reps', optional: 'tgu' },
-        { ex: 'carry_rack', track: 'carry_time', replaces: 'tgu' }
-      ]},
-      { id: 'S', name: 'S&S', focus: 'ballistic', slots: [
-        { ex: 'swing_1h', track: 'swing_vol' },
-        { ex: 'tgu', track: 'tgu_reps', optional: 'tgu' },
-        { ex: 'carry_rack', track: 'carry_time', replaces: 'tgu' }
-      ]},
-      { id: 'S', name: 'S&S', focus: 'ballistic', slots: [
-        { ex: 'swing_1h', track: 'swing_vol' },
-        { ex: 'tgu', track: 'tgu_reps', optional: 'tgu' },
-        { ex: 'carry_rack', track: 'carry_time', replaces: 'tgu' }
-      ]},
-      { id: 'L', name: 'Лёгкий день', focus: 'light', mult: 0.6, slots: [
-        { ex: 'swing_2h', track: 'swing_vol' }
-      ]},
-      { id: 'S', name: 'S&S', focus: 'ballistic', slots: [
-        { ex: 'swing_1h', track: 'swing_vol' },
-        { ex: 'tgu', track: 'tgu_reps', optional: 'tgu' },
-        { ex: 'carry_rack', track: 'carry_time', replaces: 'tgu' }
-      ]},
-      { id: 'S', name: 'S&S', focus: 'ballistic', slots: [
-        { ex: 'swing_1h', track: 'swing_vol' },
-        { ex: 'tgu', track: 'tgu_reps', optional: 'tgu' },
-        { ex: 'carry_rack', track: 'carry_time', replaces: 'tgu' }
-      ]},
-      REST_DAY
-    ]
+    tag: 'оригинал · 20–30 мин',
+    desc: '100 махов одной рукой и 10 турецких подъёмов. Каждый день, объём не меняется — растёт только вес.',
+    for: 'Когда нужен один понятный ориентир на полгода вперёд.',
+    origin: 'программа Павла Цацулина, воспроизведена по оригиналу: объём фиксирован (10×10 махов + 10 подъёмов), вес растёт заменой по одному подходу за раз, затем идёт работа на временные нормативы — 100 махов за 5 минут и 10 подъёмов за 10 минут',
+    fixedVolume: true,
+    days: Array.from({ length: 7 }, () => ({
+      id: 'S', name: 'Simple & Sinister', focus: 'mixed',
+      slots: [
+        { ex: 'swing_1h', track: 'sns_swing' },
+        { ex: 'tgu', track: 'sns_tgu' }
+      ]
+    }))
   },
 
   rop: {
@@ -425,6 +525,39 @@ export const PROGRAMS = {
     ]
   },
 
+  gs_base: {
+    name: 'Гиревой спорт · базовый цикл',
+    tag: 'другая дисциплина · 30–45 мин',
+    desc: 'Толчок, рывок и длинный цикл интервалами. Задача — доработать до 10-минутного сета в соревновательном темпе.',
+    for: 'Если интересен именно гиревой спорт, а не общая форма.',
+    origin: 'построена по общей логике подготовки в гиревом спорте: сначала длиннее сеты на низком темпе, потом растёт темп на полных 10 минутах. Конкретные ступени — наш выбор. Это НЕ hardstyle: техника здесь другая и ставится с тренером, а не по приложению',
+    warn: 'Эта программа плохо сочетается с БЖЖ и жиросжиганием: 10-минутные сеты выматывают и требуют серьёзного восстановления. Берите её, только если цель — сам гиревой спорт.',
+    days: [
+      { id: 'J', name: 'Толчок · интервалы', focus: 'ballistic', slots: [
+        { ex: 'gs_jerk', track: 'gs_jerk_cap' },
+        { ex: 'goblet_squat', track: 'squat_reps' }
+      ]},
+      { id: 'S', name: 'Рывок · интервалы', focus: 'ballistic', slots: [
+        { ex: 'gs_snatch', track: 'gs_snatch_cap' },
+        { ex: 'row', track: 'row_reps' }
+      ]},
+      { id: 'R', name: 'Восстановление', focus: 'rest',
+        note: 'Мобильность и лёгкая прогулка. В гиревом спорте объём большой, без выходных он не переваривается.',
+        slots: [] },
+      { id: 'L', name: 'Длинный цикл', focus: 'ballistic', slots: [
+        { ex: 'gs_lc', track: 'gs_lc_cap' }
+      ]},
+      { id: 'S2', name: 'Рывок · лёгкий', focus: 'light', mult: 0.6, slots: [
+        { ex: 'gs_snatch', track: 'gs_snatch_cap' },
+        { ex: 'carry_farmer', track: 'carry_time' }
+      ]},
+      { id: 'J2', name: 'Толчок · объём', focus: 'ballistic', mult: 0.85, slots: [
+        { ex: 'gs_jerk', track: 'gs_jerk_cap' }
+      ]},
+      { id: 'R', name: 'Восстановление', focus: 'rest', slots: [] }
+    ]
+  },
+
   bjj: {
     name: 'Поддержка БЖЖ',
     tag: 'без ям · 15–20 мин',
@@ -457,12 +590,38 @@ export const PROGRAMS = {
   }
 };
 
-// Волна нагрузки внутри 4-недельного блока
-export const WAVE = [
-  { mult: 1.00, name: 'Неделя 1 · базовая', hint: 'Рабочий объём. Спокойно набираешь.' },
-  { mult: 1.10, name: 'Неделя 2 · плюс', hint: 'Чуть больше работы, чем на прошлой.' },
-  { mult: 1.20, name: 'Неделя 3 · пик', hint: 'Самая объёмная неделя блока. Дальше разгрузка.' },
-  { mult: 0.55, name: 'Неделя 4 · разгрузка', hint: 'Специально мало. Тело догоняет нагрузку именно здесь.' }
+// Волна нагрузки внутри блока.
+// Длина блока настраивается: разгрузка каждые 4, 6 или 8 недель, либо никогда.
+// По умолчанию 6 — доказательств, что разгрузка улучшает адаптацию, нет
+// (Coleman et al., 2024), а при разгрузке каждую 4-ю неделю первый месяц
+// занятий теряет четверть объёма. Шесть недель — компромисс: связки и хват
+// при ежедневной работе всё-таки нужно разгружать, но не так часто.
+export function waveFor(week, deloadEvery = 6) {
+  if (!deloadEvery) {
+    return { index: 0, mult: 1, name: 'Ровная нагрузка', hint: 'Разгрузка выключена. Объём растёт только прогрессией.', deload: false };
+  }
+  const i = week % deloadEvery;
+  const isDeload = i === deloadEvery - 1;
+  if (isDeload) {
+    return { index: i, mult: 0.55, name: `Неделя ${i + 1} · разгрузка`,
+             hint: 'Специально мало. Даём догнать связкам и хвату — они восстанавливаются медленнее мышц.', deload: true };
+  }
+  const ramp = deloadEvery > 2 ? i / (deloadEvery - 2) : 0;
+  const mult = Math.round((1 + 0.2 * ramp) * 100) / 100;
+  return {
+    index: i, mult, deload: false,
+    name: `Неделя ${i + 1} · ${i === 0 ? 'базовая' : mult >= 1.19 ? 'пик' : 'плюс'}`,
+    hint: i === 0 ? 'Рабочий объём. Спокойно набираешь.'
+        : mult >= 1.19 ? 'Самая объёмная неделя блока. Дальше разгрузка.'
+        : 'Чуть больше работы, чем на прошлой.'
+  };
+}
+
+export const DELOAD_OPTIONS = [
+  { v: 4, label: 'каждые 4 недели', hint: 'чаще отдыха, медленнее прогресс' },
+  { v: 6, label: 'каждые 6 недель', hint: 'по умолчанию' },
+  { v: 8, label: 'каждые 8 недель', hint: 'для опытных и молодых суставов' },
+  { v: 0, label: 'никогда', hint: 'следи за локтями сам' }
 ];
 
 export const RPE_HINTS = {

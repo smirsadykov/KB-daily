@@ -1,8 +1,8 @@
-import { EXERCISES, PROGRAMS, TRACKS, WAVE, RPE_HINTS } from './data.js';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_HINTS } from './data.js';
 import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON } from './store.js';
 import {
   planFor, applySession, summarizeItem, readinessMult, readinessLabel,
-  waveIndex, isDeload, acwr, streak, sessionLoad, tonnage, nextStepText, stepText, dayIndex,
+  waveIndex, weekIndex, wave, isDeload, acwr, streak, sessionLoad, tonnage, nextStepText, stepText, dayIndex,
   estimateMinutes, pairRealRest, paceFactor
 } from './progression.js';
 import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js';
@@ -110,10 +110,9 @@ function ensureToday() {
 function viewToday() {
   ensureToday();
   const date = todayISO();
-  const wi = waveIndex(S, date);
-  const wave = WAVE[wi];
+  const w = wave(S, date);
   const d = new Date(date + 'T00:00:00');
-  setTop('Сегодня', `${RU_DAYS[d.getDay()]}, ${prettyDate(date)} · ${wave.name}`);
+  setTop('Сегодня', `${RU_DAYS[d.getDay()]}, ${prettyDate(date)} · ${w.name}`);
 
   // если тренировка уже начата — показываем её, даже если по циклу сегодня отдых
   if (S.today) return viewSession(S.today.plan);
@@ -131,7 +130,7 @@ function viewToday() {
     </div>` : '';
 
   if (preview.isRest) return banner + viewRestDay(preview);
-  return banner + viewReadiness(preview, wave);
+  return banner + viewReadiness(preview, w);
 }
 
 function viewRestDay(plan) {
@@ -316,13 +315,14 @@ function viewExercise(it, i) {
 }
 
 function viewSet(it, s, i, j, exLabel) {
-  const isTime = it.kind === 'time';
-  const title = isTime
-    ? `${s.sec} сек`
+  const isTime = s.sec > 0;
+  const title = s.gs
+    ? `${Math.round(s.sec / 60)} мин · ${s.rpm} в минуту = ${s.reps} подъёмов`
+    : isTime ? `${s.sec} сек`
     : s.complex ? `1 круг${s.complexReps ? ' · ' + s.complexReps : ''}` : `${exLabel ? exLabel + ' · ' : ''}${s.actualReps ?? s.reps} ${plural(s.actualReps ?? s.reps, 'повтор', 'повтора', 'повторов')}`;
   const sub = [s.side ? `<span class="side-${s.side}">${sideText(s.side)}</span>` : '', `${s.weight} кг`, s.rung ? `ступень ${s.rung}` : '']
     .filter(Boolean).join(' · ');
-  const btn = s.done ? '✓ есть' : isTime ? `▶ ${s.sec}с` : 'Готово';
+  const btn = s.done ? '✓ есть' : s.gs ? `▶ ${Math.round(s.sec / 60)} мин` : isTime ? `▶ ${s.sec}с` : 'Готово';
   return `
   <div class="set ${s.done ? 'done' : ''}">
     <div class="set-n">${j + 1}</div>
@@ -687,10 +687,11 @@ function viewProgress() {
         const p = S.progress[exId]; const tr = TRACKS[trackId];
         if (!p || !tr) return '';
         if (exId === 'tgu' && !S.settings.tgu) return '';
+        const st = p.steps?.[trackId] ?? p.step ?? 0;
         return `<tr>
-          <td>${h(EXERCISES[exId].name)}<div class="muted small">дальше: ${h(nextStepText(trackId, p.step))}</div></td>
+          <td>${h(EXERCISES[exId].name)}<div class="muted small">дальше: ${h(nextStepText(trackId, st))}</div></td>
           <td>${p.weight} кг</td>
-          <td>${p.step + 1}/${tr.steps.length}${p.wins ? ' <span class="pill ok">+1</span>' : ''}</td>
+          <td>${st + 1}/${tr.steps.length}${p.wins ? ' <span class="pill ok">+1</span>' : ''}</td>
         </tr>`;
       }).join('')}
     </table>
@@ -699,9 +700,12 @@ function viewProgress() {
 
   <h3>Где ты в блоке</h3>
   <div class="card">
-    ${WAVE.map((w, i) => `<div class="row between" style="padding:6px 0${i === waveIndex(S) ? ';font-weight:700' : ';opacity:.6'}">
-      <span>${h(w.name)}</span><span class="pill ${i === waveIndex(S) ? 'accent' : ''}">×${w.mult.toFixed(2).replace('.', ',')}</span></div>`).join('')}
-    <p class="muted small mt mb0">Три недели растём, четвёртую разгружаемся. Форма приходит именно на разгрузке.</p>
+    ${(S.settings.deloadEvery ?? 6)
+      ? Array.from({ length: S.settings.deloadEvery ?? 6 }, (_, i) => waveFor(i, S.settings.deloadEvery ?? 6))
+          .map((w, i) => `<div class="row between" style="padding:6px 0${i === waveIndex(S) ? ';font-weight:700' : ';opacity:.6'}">
+            <span>${h(w.name)}</span><span class="pill ${i === waveIndex(S) ? 'accent' : ''}">×${w.mult.toFixed(2).replace('.', ',')}</span></div>`).join('')
+      : '<p class="muted small mb0">Разгрузка выключена — объём растёт только прогрессией.</p>'}
+    <p class="muted small mt mb0">Разгрузка нужна не для роста силы — доказательств этому нет. Она нужна связкам и хвату, которые при ежедневной работе восстанавливаются медленнее мышц.</p>
   </div>`;
 }
 
@@ -754,7 +758,7 @@ function viewSettings() {
       if (exId === 'tgu' && !S.settings.tgu) return '';
       const p = S.progress[exId];
       return `<div class="switch">
-        <div><div class="sw-label">${h(EXERCISES[exId].name)}</div><div class="sw-hint">шаг ${p.step + 1}</div></div>
+        <div><div class="sw-label">${h(EXERCISES[exId].name)}</div><div class="sw-hint">${Object.keys(p.steps || {}).length ? 'в работе' : 'ещё не начато'}</div></div>
         <select data-act="weight" data-ex="${exId}" style="width:110px;min-height:42px">
           ${S.settings.bells.map(b => `<option value="${b}" ${b === p.weight ? 'selected' : ''}>${b} кг</option>`).join('')}
         </select>
@@ -783,9 +787,17 @@ function viewSettings() {
   <h3>Цикл</h3>
   <div class="card">
     <div class="row between">
-      <div><div class="sw-label">Старт блока</div><div class="sw-hint">${prettyDate(S.settings.startDate)} · сейчас ${WAVE[waveIndex(S)].name.toLowerCase()}</div></div>
+      <div><div class="sw-label">Старт блока</div><div class="sw-hint">${prettyDate(S.settings.startDate)} · сейчас ${wave(S).name.toLowerCase()}</div></div>
       <button class="btn ghost sm" data-act="restart-block">Начать заново</button>
     </div>
+  </div>
+
+  <h3>Разгрузочная неделя</h3>
+  <div class="card">
+    <div class="chips">
+      ${DELOAD_OPTIONS.map(o => `<button class="chip ${(S.settings.deloadEvery ?? 6) === o.v ? 'on' : ''}" data-act="deload" data-v="${o.v}">${o.label}</button>`).join('')}
+    </div>
+    <p class="muted small mt mb0">Исследования не подтверждают, что разгрузка ускоряет рост силы. Здесь она нужна связкам и хвату при ежедневной работе. Раз в 4 недели — это четверть первого месяца в полсилы, поэтому по умолчанию раз в 6.</p>
   </div>
 
   <h3>Данные</h3>
@@ -1021,6 +1033,10 @@ const actions = {
     update(s => { s.settings.timeBudget = +el.dataset.v; s.today = null; });
     render();
     toast(+el.dataset.v ? `Уложусь в ${el.dataset.v} минут` : 'Лимит снят');
+  },
+  deload(el) {
+    update(s => { s.settings.deloadEvery = +el.dataset.v; s.today = null; });
+    render();
   },
   'test-open'() { S.testDraft = defaultTestDraft(); save(); tab = 'test'; render(); },
   'test-exit'() { tab = 'today'; render(); },

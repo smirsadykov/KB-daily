@@ -26,7 +26,10 @@ export function defaultState() {
   const weights = defaultWeights(bells);
   const progress = {};
   for (const id of Object.keys(weights)) {
-    progress[id] = { weight: weights[id], step: 0, wins: 0, fails: 0 };
+    // steps — ступень отдельно для каждой лестницы прогрессии: одно и то же
+    // упражнение в разных программах идёт по разным лестницам (махи в
+    // «Ежедневном минимуме» и в S&S — это разные схемы роста)
+    progress[id] = { weight: weights[id], step: 0, steps: {}, wins: 0, fails: 0 };
   }
   return {
     version: 1,
@@ -36,6 +39,7 @@ export function defaultState() {
       programId: 'daily_min',
       startDate: todayISO(),
       timeBudget: 25,
+      deloadEvery: 6,
       warmup: true,
       cooldown: true,
       tgu: false,
@@ -78,6 +82,7 @@ function migrate(s) {
   // Новые упражнения в библиотеке — добавляем состояние прогресса
   for (const [id, p] of Object.entries(base.progress)) {
     if (!merged.progress[id]) merged.progress[id] = p;
+    if (!merged.progress[id].steps) merged.progress[id].steps = {};
   }
   if (!PROGRAMS[merged.settings.programId]) merged.settings.programId = 'daily_min';
   merged.sessions = Array.isArray(s.sessions) ? s.sessions : [];

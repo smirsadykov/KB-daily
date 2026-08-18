@@ -1,13 +1,13 @@
 // Офлайн-кэш. Меняешь код — подними версию, и обновление приедет само.
-const VERSION = 'kbd-v10';
+const VERSION = 'kbd-v11';
 // Версия в адресе файла — единственный способ гарантированно пробить
 // старый кэш на уже установленном приложении. Меняешь css или app.js —
 // подними ?v= здесь и в index.html.
 const ASSETS = [
   './',
   './index.html',
-  './css/styles.css?v=8',
-  './js/app.js?v=8',
+  './css/styles.css?v=9',
+  './js/app.js?v=9',
   './js/data.js',
   './js/store.js',
   './js/progression.js',
