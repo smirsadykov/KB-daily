@@ -322,7 +322,7 @@ function refreshScheme(item) {
   else if (item.kind === 'ladder') item.scheme = `${item.ladders} ${ladderWord(item.ladders)} ${(item.rungs || []).join('-')}`;
   else if (item.kind === 'reps') item.scheme = `${item.sets.length / sides} × ${first.reps}${perSide}`;
   else if (item.kind === 'time') item.scheme = `${item.sets.length / sides} × ${first.sec} сек${perSide}`;
-  else if (item.kind === 'emom') item.scheme = `${item.sets.length} кругов`;
+  else if (item.kind === 'emom') item.scheme = `${item.sets.length} кругов` + (item.doubled ? ' · двумя гирями' : ' · на каждую сторону');
   else if (item.kind === 'swap') {
     const base = `${item.sets.length} × ${first.reps}`;
     // на ступени норматива важен режим времени, а не сколько подходов целевым весом

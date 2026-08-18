@@ -201,3 +201,36 @@ console.log('\n=== 8. Пол отдыха действует и внутри п�
 }
 console.log(`  всего проверок ${checks}, провалов ${fails}`);
 console.log(`\nФИНАЛ: ${checks} проверок, ${fails} провалов`);
+
+console.log('\n=== 9. Подпись не теряет смысл после пересчёта бюджета ===');
+{
+  // refreshScheme уже дважды затирал важные части подписи (норматив S&S,
+  // «двумя гирями»). Проверяем, что подпись всегда согласована с подходами.
+  for (const [pid] of Object.entries(PROGRAMS)) {
+    for (const budget of [0, 15, 25, 45]) {
+      for (const step of [0, 5, 11]) {
+        for (const pairs of [[], [16], [16, 24, 32]]) {
+          const st = mkState({ settings: { programId: pid, timeBudget: budget }, step });
+          st.settings.pairs = pairs;
+          for (let d = 0; d < PROGRAMS[pid].days.length; d++) {
+            const p = planFor(st, today, null, d);
+            if (p.isRest) continue;
+            for (const it of p.items) {
+              ok(!!it.scheme && it.scheme !== '—', `${pid}/${budget}/pairs${pairs.length}: пустая подпись у ${it.exId}`);
+              if (it.kind === 'emom') {
+                const dbl = it.sets.some(s => s.doubled);
+                ok(it.scheme.includes(dbl ? 'двумя гирями' : 'на каждую сторону'),
+                   `${pid}: подпись «${it.scheme}» не говорит, одной гирей или двумя`);
+              }
+              if (it.kind === 'swap' && it.emom) {
+                ok(/норматив|минут|сек/.test(it.scheme), `${pid}: ступень норматива S&S потеряла режим времени: «${it.scheme}»`);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+console.log(`  всего проверок ${checks}, провалов ${fails}`);
+console.log(`\nИТОГ: ${checks} проверок, ${fails} провалов`);
