@@ -1,17 +1,17 @@
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel } from './data.js?v=23';
-import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON } from './store.js?v=23';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel } from './data.js?v=24';
+import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON } from './store.js?v=24';
 import {
   planFor, applySession, summarizeItem, readinessMult, readinessLabel,
   waveIndex, weekIndex, wave, isDeload, acwr, streak, sessionLoad, tonnage, nextStepText, stepText, dayIndex,
   estimateMinutes, pairRealRest, paceFactor
-} from './progression.js?v=23';
-import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=23';
-import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=23';
+} from './progression.js?v=24';
+import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=24';
+import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=24';
 
 // byId должен видеть и свои записи пользователя, поэтому оборачиваем
 const byId = (id) => suppById(id, S);
-import { timer, fmt, unlockAudio } from './timer.js?v=23';
-import { barChart, gauge } from './charts.js?v=23';
+import { timer, fmt, unlockAudio } from './timer.js?v=24';
+import { barChart, gauge } from './charts.js?v=24';
 
 // ── Мелкие помощники ─────────────────────────────────────────────────────────
 const $ = (s, r = document) => r.querySelector(s);
@@ -127,6 +127,7 @@ function viewOnboarding() {
       </div>
       <div class="muted small mt">${h(p.desc)}</div>
       <div class="muted small" style="opacity:.75">${h(p.for)}</div>
+      ${p.warn ? `<div class="muted small" style="margin-top:8px;color:var(--warn)">⚠️ ${h(p.warn)}</div>` : ''}
       ${p.origin ? `<div class="muted small" style="opacity:.6;margin-top:6px">Происхождение: ${h(p.origin)}</div>` : ''}
       ${p.gives ? `<details class="tips" data-key="prog-${id}" style="margin-top:8px">
         <summary>Что даёт и чего не даёт</summary>
@@ -443,11 +444,11 @@ function viewSet(it, s, i, j, exLabel) {
   const isTime = s.sec > 0;
   const title = s.gs
     ? `${Math.round(s.sec / 60)} мин · ${s.rpm} в минуту = ${s.reps} подъёмов`
-    : isTime ? `${s.sec} сек`
+    : isTime ? (s.sec >= 120 ? `${Math.round(s.sec / 60)} мин` : `${s.sec} сек`)
     : s.complex ? `1 круг${s.complexReps ? ' · ' + s.complexReps : ''}` : `${exLabel ? exLabel + ' · ' : ''}${s.actualReps ?? s.reps} ${plural(s.actualReps ?? s.reps, 'повтор', 'повтора', 'повторов')}`;
   const sub = [s.side ? `<span class="side-${s.side}">${sideText(s.side)}</span>` : '', `${s.weight} кг`, s.rung ? `ступень ${s.rung}` : '']
     .filter(Boolean).join(' · ');
-  const btn = s.done ? '✓ есть' : s.gs ? `▶ ${Math.round(s.sec / 60)} мин` : isTime ? `▶ ${s.sec}с` : 'Готово';
+  const btn = s.done ? '✓ есть' : s.gs || s.sec >= 120 ? `▶ ${Math.round(s.sec / 60)} мин` : isTime ? `▶ ${s.sec}с` : 'Готово';
   return `
   <div class="set ${s.done ? 'done' : ''}">
     <div class="set-n">${j + 1}</div>
@@ -982,6 +983,7 @@ function viewSettings() {
     <div class="card tight tap ${S.settings.programId === id ? 'accent' : ''}" role="button" tabindex="0" data-act="program" data-v="${id}">
       <div class="row between"><div class="ex-name">${h(p.name)}</div><span class="pill ${S.settings.programId === id ? 'accent' : ''}">${h(p.tag)}</span></div>
       <div class="muted small mt">${h(p.desc)}</div>
+      ${p.warn ? `<div class="muted small" style="margin-top:8px;color:var(--warn)">⚠️ ${h(p.warn)}</div>` : ''}
       ${p.origin ? `<div class="muted small" style="opacity:.6;margin-top:6px">Происхождение: ${h(p.origin)}</div>` : ''}
       ${p.gives ? `<details class="tips" data-key="prog-${id}" style="margin-top:8px">
         <summary>Что даёт и чего не даёт</summary>

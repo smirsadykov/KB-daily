@@ -218,9 +218,14 @@ console.log('\n=== 9. Подпись не теряет смысл после п�
             for (const it of p.items) {
               ok(!!it.scheme && it.scheme !== '—', `${pid}/${budget}/pairs${pairs.length}: пустая подпись у ${it.exId}`);
               if (it.kind === 'emom') {
-                const dbl = it.sets.some(s => s.doubled);
-                ok(it.scheme.includes(dbl ? 'двумя гирями' : 'на каждую сторону'),
-                   `${pid}: подпись «${it.scheme}» не говорит, одной гирей или двумя`);
+                if (it.alt) {
+                  // где чередуются два разных движения, «одной или двумя гирями» неприменимо
+                  ok(it.scheme.includes('чередуются'), `${pid}: подпись «${it.scheme}» не говорит о чередовании движений`);
+                } else {
+                  const dbl = it.sets.some(s => s.doubled);
+                  ok(it.scheme.includes(dbl ? 'двумя гирями' : 'на каждую сторону'),
+                     `${pid}: подпись «${it.scheme}» не говорит, одной гирей или двумя`);
+                }
               }
               if (it.kind === 'swap' && it.emom) {
                 ok(/норматив|минут|сек/.test(it.scheme), `${pid}: ступень норматива S&S потеряла режим времени: «${it.scheme}»`);

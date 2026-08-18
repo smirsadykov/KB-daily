@@ -1,6 +1,6 @@
 // Движок прогрессии: что делать сегодня и что менять после тренировки.
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=23';
-import { nextBell, prevBell, todayISO } from './store.js?v=23';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=24';
+import { nextBell, prevBell, todayISO } from './store.js?v=24';
 
 const DAY = 86400000;
 
@@ -82,7 +82,8 @@ function expandSets(exId, ex, step, kind, weight, mult, bells = [], track = {}, 
     return { sets, rest: step.rest, emom: null, ladders: n, rungs: step.rungs };
   }
   if (kind === 'reps') {
-    const n = clamp(Math.round(step.sets * mult), 1, 8);
+    // потолок должен быть выше конца самой длинной лестницы этого типа
+    const n = clamp(Math.round(step.sets * mult), 1, 24);
     for (let i = 0; i < n; i++) {
       if (ex.side === 'each') { push({ reps: step.reps, side: 'L' }); push({ reps: step.reps, side: 'R' }); }
       else push({ reps: step.reps });
@@ -129,13 +130,16 @@ function expandSets(exId, ex, step, kind, weight, mult, bells = [], track = {}, 
     // Если этот вес есть парой — делаем как в оригинале, двумя гирями сразу,
     // и круг не делится на стороны. Иначе круг идёт на каждую сторону,
     // и тогда число кругов должно быть чётным, чтобы руки получили поровну.
-    if (!doubles && ex.side === 'each' && n % 2 !== 0) n += 1;
-    // один круг комплекса = 2 заброса + 1 жим + 3 приседа (соотношение Дэна Джона)
+    if (!doubles && !track.alt && ex.side === 'each' && n % 2 !== 0) n += 1;
+    // Подпись подхода берём из трека: у ABC это состав круга, у Q&D —
+    // название движения, потому что там два движения чередуются.
+    const alt = track.alt;
     for (let i = 0; i < n; i++) {
-      push({ reps: 1, side: doubles ? null : sideFor(i), complex: true,
-             doubled: doubles, complexReps: '2 заброса · 1 жим · 3 приседа' });
+      push({ reps: 1, side: doubles || alt ? null : sideFor(i), complex: true,
+             doubled: doubles, alt: !!alt,
+             complexReps: alt ? alt[i % alt.length] : '2 заброса · 1 жим · 3 приседа' });
     }
-    return { sets, rest: 0, emom: step.emom, doubled: doubles };
+    return { sets, rest: 0, emom: step.emom, doubled: doubles, alt: !!track.alt };
   }
   return { sets, rest: 60, emom: null };
 }
@@ -156,8 +160,14 @@ function schemeText(kind, step, item) {
   if (kind === 'ballistic') return `${item.sets.length} × ${step.reps}` + (item.heavy ? `, из них ${item.heavy} новым весом` : '');
   if (kind === 'ladder') return `${item.ladders} ${ladderWord(item.ladders)} ${step.rungs.join('-')}`;
   if (kind === 'reps') return `${item.sets.length / sides} × ${step.reps}${perSide}`;
-  if (kind === 'time') return `${item.sets.length / sides} × ${step.sec} сек${perSide}`;
-  if (kind === 'emom') return `${item.sets.length} кругов, каждые ${step.emom} сек` + (item.doubled ? ' · двумя гирями' : ' · на каждую сторону');
+  if (kind === 'time') return step.sec >= 120
+    ? `${item.sets.length / sides} × ${Math.round(step.sec / 60)} мин${perSide}`
+    : `${item.sets.length / sides} × ${step.sec} сек${perSide}`;
+  if (kind === 'emom') {
+    const base = `${item.sets.length} ${item.alt ? 'подходов' : 'кругов'}, каждые ${step.emom} сек`;
+    if (item.alt) return base + ' · движения чередуются';
+    return base + (item.doubled ? ' · двумя гирями' : ' · на каждую сторону');
+  }
   if (kind === 'swap') {
     const base = `${item.sets.length} × ${step.reps ?? 10}`;
     if (step.interval) return `${base} · ${step.label || 'на время'}`;
@@ -323,8 +333,12 @@ function refreshScheme(item) {
   if (item.kind === 'ballistic') item.scheme = `${item.sets.length} × ${first.reps}` + (item.heavy ? `, из них ${item.heavy} новым весом` : '');
   else if (item.kind === 'ladder') item.scheme = `${item.ladders} ${ladderWord(item.ladders)} ${(item.rungs || []).join('-')}`;
   else if (item.kind === 'reps') item.scheme = `${item.sets.length / sides} × ${first.reps}${perSide}`;
-  else if (item.kind === 'time') item.scheme = `${item.sets.length / sides} × ${first.sec} сек${perSide}`;
-  else if (item.kind === 'emom') item.scheme = `${item.sets.length} кругов` + (item.doubled ? ' · двумя гирями' : ' · на каждую сторону');
+  else if (item.kind === 'time') item.scheme = first.sec >= 120
+    ? `${item.sets.length / sides} × ${Math.round(first.sec / 60)} мин${perSide}`
+    : `${item.sets.length / sides} × ${first.sec} сек${perSide}`;
+  else if (item.kind === 'emom') item.scheme = item.alt
+    ? `${item.sets.length} подходов · движения чередуются`
+    : `${item.sets.length} кругов` + (item.doubled ? ' · двумя гирями' : ' · на каждую сторону');
   else if (item.kind === 'swap') {
     const base = `${item.sets.length} × ${first.reps}`;
     // на ступени норматива важен режим времени, а не сколько подходов целевым весом
