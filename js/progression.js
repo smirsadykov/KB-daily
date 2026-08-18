@@ -1,6 +1,6 @@
 // Движок прогрессии: что делать сегодня и что менять после тренировки.
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=24';
-import { nextBell, prevBell, todayISO } from './store.js?v=24';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=25';
+import { nextBell, prevBell, todayISO } from './store.js?v=25';
 
 const DAY = 86400000;
 
@@ -61,7 +61,8 @@ function expandSets(exId, ex, step, kind, weight, mult, bells = [], track = {}, 
   const sideFor = (i) => ex.side === 'each' ? (i % 2 === 0 ? 'L' : 'R') : null;
 
   if (kind === 'ballistic') {
-    let n = clamp(Math.round(step.sets * mult), 2, 14);
+    // потолок выше конца самой длинной лестницы: у A+A это 50 подходов
+    let n = clamp(Math.round(step.sets * mult), 2, 60);
     // swapIn: столько подходов делается уже следующей гирей
     const heavier = step.swapIn ? (nextBell(weight, bells) ?? weight) : null;
     const heavyN = step.swapIn ? Math.min(step.swapIn, n) : 0;
@@ -286,6 +287,10 @@ function canPair(a, b) {
   // в гиревом спорте сет задан временем и темпом, в S&S объём фиксирован
   // программой — пары там ломают саму суть, а не экономят время
   if (['interval', 'swap'].includes(a.kind) || ['interval', 'swap'].includes(b.kind)) return false;
+  // трек может запретить пары явно (Easy Strength: там нельзя поднимать пульс)
+  if (TRACKS[a.trackId]?.noPair || TRACKS[b.trackId]?.noPair) return false;
+  // работа в минутном режиме уже задана таймером, пара её ломает
+  if (a.emom || b.emom) return false;
   const pa = EXERCISES[a.exId]?.pattern, pb = EXERCISES[b.exId]?.pattern;
   return pa && pb && pa !== pb;
 }
