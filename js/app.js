@@ -601,7 +601,7 @@ function viewSupps() {
     ${adh !== null ? `<p class="muted small mb0 mt">Регулярность за 30 дней: ${adh}%. Для креатина, бета-аланина и омега-3 важна именно она, а не разовые приёмы.</p>` : ''}
   </div>` : ''}
 
-  ${['A', 'B', 'C'].map(tier => `
+  ${['A', 'B'].map(tier => `
     <h3>${TIERS[tier].label}</h3>
     <p class="muted small" style="margin:-4px 0 8px">${h(TIERS[tier].note)}</p>
     ${groups[tier].map(sp => {
@@ -613,8 +613,7 @@ function viewSupps() {
             <div class="ex-name">${h(sp.name)}</div>
             <div class="muted small">${h(doseFor(sp, S.settings.bodyWeight))}</div>
           </div>
-          ${tier === 'C' ? `<span class="pill bad">не стоит</span>`
-            : `<button class="sw ${on ? 'on' : ''}" data-act="supp-toggle" data-id="${sp.id}"><i></i></button>`}
+          <button class="sw ${on ? 'on' : ''}" data-act="supp-toggle" data-id="${sp.id}"><i></i></button>
         </div>
         <details class="tips">
           <summary>Подробнее</summary>
@@ -628,6 +627,16 @@ function viewSupps() {
         </details>
       </div>`;
     }).join('')}`).join('')}
+
+  <details class="card tight tips">
+    <summary>На что не тратить деньги</summary>
+    <p class="muted small mt">Отмечать это нечего — эти вещи не работают. Держу список только чтобы ты не купил их по чьему-нибудь совету.</p>
+    ${groups.C.map(sp => `<div style="margin-bottom:10px">
+      <div class="small"><b>${h(sp.name)}</b></div>
+      <div class="muted small">${h(sp.why)} ${h(sp.myth)}</div>
+    </div>`).join('')}
+    <div class="muted small">${h(groups.C.map(sp => sp.safety).find(x => x.includes('незаявленных')) || '')}</div>
+  </details>
 
   <h3>Вес тела</h3>
   <div class="card">
