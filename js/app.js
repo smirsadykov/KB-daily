@@ -43,9 +43,29 @@ function prettyDate(iso) {
 function sideText(s) { return s === 'L' ? 'левая' : s === 'R' ? 'правая' : ''; }
 
 // ── Роутер ───────────────────────────────────────────────────────────────────
+// Экран перерисовывается целиком после каждого действия. Если при этом
+// всегда прыгать наверх, отмечать подходы невозможно: после каждого «Готово»
+// приходится скроллить обратно. Поэтому наверх уходим только когда реально
+// сменился экран, а не когда перерисовали тот же самый.
+let lastViewKey = null;
+
+function viewKey() {
+  return [tab, S.onboarded ? 1 : 0, S.today ? 1 : 0, S.testDraft?.i ?? '-'].join('|');
+}
+
 function render() {
   const screen = $('#screen');
-  if (!S.onboarded) { screen.innerHTML = viewOnboarding(); setTop('Настроим под тебя', ''); return; }
+  const key = viewKey();
+  const sameView = key === lastViewKey;
+  const keepY = window.scrollY;
+
+  if (!S.onboarded) {
+    screen.innerHTML = viewOnboarding();
+    setTop('Настроим под тебя', '');
+    lastViewKey = key;
+    if (sameView) window.scrollTo({ top: keepY });
+    return;
+  }
   if (tab === 'today') { screen.innerHTML = viewToday(); }
   if (tab === 'test') { screen.innerHTML = viewTest(); }
   if (tab === 'supps') { screen.innerHTML = viewSupps(); }
@@ -54,7 +74,16 @@ function render() {
   if (tab === 'progress') { screen.innerHTML = viewProgress(); }
   if (tab === 'settings') { screen.innerHTML = viewSettings(); }
   $$('.tab').forEach(b => b.classList.toggle('is-active', b.dataset.tab === tab));
-  window.scrollTo({ top: 0 });
+
+  lastViewKey = key;
+  // при возврате позиции ограничиваем её новой высотой страницы:
+  // после урезания списка старая координата может оказаться за концом
+  if (sameView) {
+    const max = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+    window.scrollTo({ top: Math.min(keepY, max) });
+  } else {
+    window.scrollTo({ top: 0 });
+  }
   updateRestbar();
 }
 
