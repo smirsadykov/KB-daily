@@ -267,3 +267,65 @@ console.log('\n=== 10. Потолки не режут последние сту�
 }
 console.log(`  всего проверок ${checks}, провалов ${fails}`);
 console.log(`\nВСЕГО: ${checks} проверок, ${fails} провалов`);
+
+console.log('\n=== 11. Поправка пропорциональна промаху ===');
+{
+  const mk2 = (step) => {
+    const st = mkState();
+    st.progress.abc = { weight: 24, step, steps: { abc_emom: step }, wins: 0, fails: 0 };
+    return st;
+  };
+  const sess = (rpe, complete = true) => ({ deload: false, entries: [{ exId: 'abc', trackId: 'abc_emom', complete, rpe }] });
+  const stepOf = (st) => st.progress.abc.steps.abc_emom;
+
+  let st = mk2(0);
+  applySession(st, sess(4));
+  ok(stepOf(st) === 3, `RPE 4 «не заметил нагрузки» должен дать +3 сразу, получили ${stepOf(st)}`);
+
+  st = mk2(0);
+  applySession(st, sess(5));
+  ok(stepOf(st) === 2, `RPE 5 «совсем легко» должен дать +2 сразу, получили ${stepOf(st)}`);
+
+  st = mk2(0);
+  applySession(st, sess(6));
+  ok(stepOf(st) === 0, 'RPE 6 сразу шаг не двигает');
+  applySession(st, sess(6));
+  ok(stepOf(st) === 1, 'две тренировки на RPE 6 дают шаг (комфортно = двойной зачёт)');
+
+  st = mk2(0);
+  for (let i = 0; i < 2; i++) applySession(st, sess(7));
+  ok(stepOf(st) === 0, 'на RPE 7 две тренировки шаг ещё не двигают');
+  applySession(st, sess(7));
+  ok(stepOf(st) === 1, 'на RPE 7 шаг приходит с третьей тренировки');
+
+  // Смена веса — единственное место, где спешить нельзя: 24→32 это +33%.
+  // Поэтому «было легко» на последней ступени вес НЕ меняет, а идёт в счётчик.
+  const lastIdx = TRACKS.abc_emom.steps.length - 1;
+  st = mk2(lastIdx);
+  applySession(st, sess(4));
+  ok(st.progress.abc.weight === 24 && stepOf(st) === lastIdx,
+     `лёгкая тренировка на последней ступени не должна менять вес сразу, получили ${st.progress.abc.weight}/${stepOf(st)}`);
+  applySession(st, sess(6));
+  ok(st.progress.abc.weight === 32 && stepOf(st) === (TRACKS.abc_emom.reset ?? 0),
+     `после подтверждения вес меняется один раз, получили ${st.progress.abc.weight}/${stepOf(st)}`);
+
+  // и не должна прыгать за конец лестницы
+  st = mk2(lastIdx - 1);
+  applySession(st, sess(4));
+  ok(stepOf(st) === lastIdx && st.progress.abc.weight === 24,
+     `прыжок не должен перескакивать последнюю ступень, получили ${stepOf(st)}/${st.progress.abc.weight}`);
+
+  // вниз реакция остаётся осторожной
+  st = mk2(5);
+  applySession(st, sess(10, false));
+  ok(stepOf(st) === 5, 'один провал шаг не откатывает');
+  applySession(st, sess(10, false));
+  ok(stepOf(st) === 4, 'два провала подряд откатывают на один шаг, не больше');
+
+  // на разгрузке ничего не двигается даже при RPE 4
+  st = mk2(3);
+  applySession(st, { deload: true, entries: [{ exId: 'abc', trackId: 'abc_emom', complete: true, rpe: 4 }] });
+  ok(stepOf(st) === 3, 'на разгрузочной неделе лёгкая тренировка не двигает шаг');
+}
+console.log(`  всего проверок ${checks}, провалов ${fails}`);
+console.log(`\nРЕЗУЛЬТАТ: ${checks} проверок, ${fails} провалов`);

@@ -1,6 +1,6 @@
 // Движок прогрессии: что делать сегодня и что менять после тренировки.
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=21';
-import { nextBell, prevBell, todayISO } from './store.js?v=21';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=22';
+import { nextBell, prevBell, todayISO } from './store.js?v=22';
 
 const DAY = 86400000;
 
@@ -540,6 +540,24 @@ export function summarizeItem(item) {
   return { doneSets: doneSets.length, totalSets: item.sets.length, doneReps, plannedReps, doneSec, complete };
 }
 
+// Размер поправки зависит от размера промаха.
+//
+// Раньше движок реагировал одинаково на RPE 5 и RPE 7: и там и там «+1
+// к счётчику», и до рабочей нагрузки можно было ползти месяц. Но «было
+// супер легко» — это не то же самое, что «нормально зашло»: в первом случае
+// назначенная нагрузка просто мимо, и одной тренировки достаточно, чтобы
+// это понять. Ждать трёх подтверждений имеет смысл у границы возможностей,
+// а не в двух шагах ниже неё.
+//
+// Вниз реакция осталась осторожной: два подряд провала на шаг назад.
+// Ошибиться в меньшую сторону дёшево, в большую — травма.
+function stepJump(rpe, complete) {
+  if (!complete) return null;
+  if (rpe <= 4) return 3;   // не заметил нагрузки вообще
+  if (rpe <= 5) return 2;   // совсем легко
+  return null;              // дальше работает обычный счётчик удачных тренировок
+}
+
 export function applySession(state, session) {
   const changes = [];
   const deload = session.deload;
@@ -554,20 +572,47 @@ export function applySession(state, session) {
     const writeStep = (v) => { p.steps[entry.trackId] = v; p.step = v; };
     const ex = EXERCISES[entry.exId];
     const rpe = entry.rpe ?? 7;
+    const last = track.steps.length - 1;
 
     if (deload) {
       changes.push({ exId: entry.exId, type: 'hold', text: `${ex.short}: разгрузочная неделя, шаг не меняем` });
       continue;
     }
 
+    // Шаг вперёд с промежуточными ступенями; вес трогаем только с последней
+    // и только на один размер за раз — тут спешить нельзя.
+    const advance = (n) => {
+      const target = readStep() + n;
+      if (target <= last) { writeStep(target); return 'step'; }
+      if (readStep() < last) { writeStep(last); return 'step'; }
+      const nb = nextBell(p.weight, state.settings.bells);
+      if (!nb) return 'max';
+      p.weight = nb;
+      writeStep(track.reset ?? 0);
+      return 'weight';
+    };
+
+    // ── Нагрузка была явно мимо: правим сразу, не копя подтверждения ──
+    const jump = deload ? null : stepJump(rpe, entry.complete);
+    if (jump && readStep() < last) {
+      const before = readStep();
+      advance(jump);
+      p.wins = 0; p.fails = 0;
+      changes.push({
+        exId: entry.exId, type: 'step-up',
+        text: `${ex.short}: слишком легко — сразу +${readStep() - before} ${readStep() - before === 1 ? 'ступень' : 'ступени'} → ${stepText(entry.trackId, readStep())}`
+      });
+      continue;
+    }
+
     if (entry.complete && rpe <= 7) {
-      p.wins = (p.wins || 0) + 1;
+      // RPE 6 — комфортно, засчитываем как две удачных: до потолка ещё далеко
+      p.wins = (p.wins || 0) + (rpe <= 6 ? 2 : 1);
       p.fails = 0;
     } else if (!entry.complete || rpe >= 9) {
       p.fails = (p.fails || 0) + 1;
       p.wins = 0;
     } else {
-      // сделал, но было тяжеловато — стоим на месте
       changes.push({ exId: entry.exId, type: 'hold', text: `${ex.short}: закрепляем, ещё разок так же` });
       continue;
     }
@@ -575,19 +620,10 @@ export function applySession(state, session) {
     const winsNeeded = track.winsNeeded ?? 2;
     if (p.wins >= winsNeeded) {
       p.wins = 0;
-      if (readStep() >= track.steps.length - 1) {
-        const nb = nextBell(p.weight, state.settings.bells);
-        if (nb) {
-          p.weight = nb;
-          writeStep(track.reset ?? 0);
-          changes.push({ exId: entry.exId, type: 'weight-up', text: `${ex.short}: гиря ${nb} кг! Объём сбросили, начинаем заново` });
-        } else {
-          changes.push({ exId: entry.exId, type: 'max', text: `${ex.short}: потолок по твоим гирям. Нужна следующая гиря` });
-        }
-      } else {
-        writeStep(readStep() + 1);
-        changes.push({ exId: entry.exId, type: 'step-up', text: `${ex.short}: шаг вперёд → ${stepText(entry.trackId, readStep())}` });
-      }
+      const res = advance(1);
+      if (res === 'weight') changes.push({ exId: entry.exId, type: 'weight-up', text: `${ex.short}: гиря ${p.weight} кг! Объём сбросили, начинаем заново` });
+      else if (res === 'max') changes.push({ exId: entry.exId, type: 'max', text: `${ex.short}: потолок по твоим гирям. Нужна следующая гиря` });
+      else changes.push({ exId: entry.exId, type: 'step-up', text: `${ex.short}: шаг вперёд → ${stepText(entry.trackId, readStep())}` });
     } else if (p.fails >= 2) {
       p.fails = 0;
       if (readStep() > 0) {
