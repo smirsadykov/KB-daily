@@ -87,7 +87,10 @@ function expandSets(exId, ex, step, kind, weight, mult) {
     return { sets, rest: step.rest, emom: null };
   }
   if (kind === 'emom') {
-    const n = clamp(Math.round(step.sets * mult), 2, 16);
+    let n = clamp(Math.round(step.sets * mult), 2, 16);
+    // как и в баллистике: при работе на каждую сторону кругов должно быть чётное
+    // число, иначе одна рука получит на круг больше
+    if (ex.side === 'each' && n % 2 !== 0) n += 1;
     for (let i = 0; i < n; i++) push({ reps: 1, side: sideFor(i), complex: true });
     return { sets, rest: 0, emom: step.emom };
   }
@@ -103,10 +106,14 @@ function ladderWord(n) {
 }
 
 function schemeText(kind, step, item) {
+  // подходы на левую и правую — это один подход схемы, а не два,
+  // иначе «3 × 45 сек на сторону» превращается в мнимые «6 × 45 сек»
+  const sides = item.sets.some(s => s.side) ? 2 : 1;
+  const perSide = sides === 2 ? ' на сторону' : '';
   if (kind === 'ballistic') return `${item.sets.length} × ${step.reps}`;
   if (kind === 'ladder') return `${item.ladders} ${ladderWord(item.ladders)} ${step.rungs.join('-')}`;
-  if (kind === 'reps') return `${item.sets.length} × ${step.reps}`;
-  if (kind === 'time') return `${item.sets.length} × ${step.sec} сек`;
+  if (kind === 'reps') return `${item.sets.length / sides} × ${step.reps}${perSide}`;
+  if (kind === 'time') return `${item.sets.length / sides} × ${step.sec} сек${perSide}`;
   if (kind === 'emom') return `${item.sets.length} кругов, каждые ${step.emom} сек`;
   return '';
 }
@@ -120,14 +127,23 @@ function schemeText(kind, step, item) {
 //   3. урезание подсобки
 //   4. и только в последнюю очередь — объём основного движения
 
+// Время работы в подходе. Числа выверены по известным ориентирам, а не на глаз:
+//   10 махов одной рукой  ≈ 20 сек  (S&S: 10×10 с отдыхом 60 сек укладывается в ~13 мин)
+//   ступень лестницы 1-2-3 ≈ 6-12 сек (заброс 2,5 + жимы по 2,5 + постановка)
+//   гоблет-присед с паузой ≈ 3 сек на повтор
+// Завышать здесь опаснее, чем занижать: из-за этого бюджет времени срезает объём,
+// который на самом деле влезал бы.
 const SET_WORK = (item, s) => {
-  if (item.kind === 'ballistic') return (s.reps || 0) * 2.8 + 8;
-  if (item.kind === 'ladder') return (s.reps || 0) * 4 + 10;   // заброс + стойка + жим
-  if (item.kind === 'reps') return (s.reps || 0) * 3.5 + 8;
-  if (item.kind === 'time') return (s.sec || 0) + 8;
+  if (item.kind === 'ballistic') return (s.reps || 0) * 1.5 + 5;
+  if (item.kind === 'ladder') return (s.reps || 0) * 2.5 + 4;   // заброс, жимы, постановка
+  if (item.kind === 'reps') return (s.reps || 0) * 3 + 5;
+  if (item.kind === 'time') return (s.sec || 0) + 5;            // взять и поставить гири
   if (item.kind === 'emom') return item.emom || 60;
   return 30;
 };
+
+// Переход между упражнениями: дойти, сменить гирю, перестроиться
+const SWITCH = 20;
 
 // Ниже этих значений отдых перестаёт быть отдыхом: жим превращается
 // в выносливость, а махи — в кашу по технике.
@@ -135,17 +151,24 @@ const REST_FLOOR = { ballistic: 30, ladder: 45, reps: 45, time: 30, emom: 0 };
 
 export function estimateSeconds(plan) {
   let sec = plan.warmup.length ? 240 : 0;
+  sec += plan.cooldown?.length ? 90 : 0;          // заминку тоже делаешь, её надо считать
   const paired = new Set();
   for (const p of plan.pairs || []) { paired.add(p.a); paired.add(p.b); }
+  let blocks = 0;
 
   for (const p of plan.pairs || []) {
-    for (const idx of [p.a, p.b]) {
-      const it = plan.items[idx];
-      sec += it.sets.reduce((t, s) => t + SET_WORK(it, s), 0) + it.sets.length * p.rest;
-    }
+    const a = plan.items[p.a], b = plan.items[p.b];
+    if (!a || !b) continue;
+    blocks++;
+    const work = [a, b].reduce((t, it) => t + it.sets.reduce((x, s) => x + SET_WORK(it, s), 0), 0);
+    // пауза стоит между подходами, а не после последнего
+    const gaps = Math.max(0, a.sets.length + b.sets.length - 1);
+    sec += work + gaps * p.rest;
   }
+
   plan.items.forEach((it, i) => {
     if (paired.has(i)) return;
+    blocks++;
     if (it.emom) { sec += it.sets.length * it.emom; return; }
     // подходы на левую и правую идут парой — отдыхаешь один раз на обе
     const sides = it.kind !== 'ballistic' && it.sets.some(s => s.side);
@@ -154,15 +177,47 @@ export function estimateSeconds(plan) {
       if (k < it.sets.length - 1 && (!sides || k % 2 === 1)) sec += it.rest || 45;
     });
   });
-  return Math.round(sec);
+
+  sec += Math.max(0, blocks - 1) * SWITCH;
+  return Math.round(sec * (plan.paceFactor || 1));
+}
+
+// Средний отдых, который реально достаётся каждому движению в паре.
+// Нужен, чтобы видеть: короткая пауза не значит короткий отдых.
+export function pairRealRest(plan, p) {
+  const a = plan.items[p.a], b = plan.items[p.b];
+  if (!a || !b) return {};
+  const work = [a, b].reduce((t, it) => t + it.sets.reduce((x, s) => x + SET_WORK(it, s), 0), 0);
+  const cycle = work + (a.sets.length + b.sets.length - 1) * p.rest;
+  const per = (it, n) => Math.round(cycle / n - it.sets.reduce((x, s) => x + SET_WORK(it, s), 0) / n);
+  return { a: per(a, a.sets.length), b: per(b, b.sets.length) };
+}
+
+// Личный темп: сравниваем прогноз с реально записанным временем.
+// У всех разный темп между подходами, и через несколько тренировок
+// приложение начинает считать по твоему, а не по среднему.
+export function paceFactor(sessions) {
+  const rows = (sessions || [])
+    .filter(s => s.type !== 'rest' && s.estimateMin > 0 && s.durationMin > 0 &&
+                 s.entries?.length && s.entries.every(e => e.complete))
+    .slice(-8);
+  if (rows.length < 3) return 1;
+  const r = rows.map(s => s.durationMin / s.estimateMin).sort((x, y) => x - y);
+  const mid = Math.floor(r.length / 2);
+  const med = r.length % 2 ? r[mid] : (r[mid - 1] + r[mid]) / 2;
+  return Math.max(0.7, Math.min(1.5, Math.round(med * 100) / 100));
 }
 
 export function estimateMinutes(plan) {
   return Math.max(5, Math.round(estimateSeconds(plan) / 60));
 }
 
-// Два движения можно ставить в пару, если они не мешают друг другу:
-// разные паттерны, не переноска и не готовый комплекс.
+// Два движения можно ставить в пару, если у них разные основные паттерны.
+// Оговорка, которую важно не замалчивать: «разные паттерны» не значит
+// «совсем не мешают друг другу». Махи и заброс с жимом оба держатся на хвате,
+// и заброс — тоже тазовый шарнир. В паре первым сдастся хват, а не бёдра.
+// Это осознанный размен: без пар в 25 минут не уложиться, но пользователю
+// об этом говорится прямо, а не подаётся как бесплатный обед.
 function canPair(a, b) {
   if (!a || !b) return false;
   if (a.kind === 'emom' || b.kind === 'emom') return false;
@@ -207,10 +262,11 @@ function refreshScheme(item) {
   const sides = item.sets.some(s => s.side) ? 2 : 1;
   const first = item.sets[0];
   if (!first) { item.scheme = '—'; return; }
+  const perSide = sides === 2 ? ' на сторону' : '';
   if (item.kind === 'ballistic') item.scheme = `${item.sets.length} × ${first.reps}`;
   else if (item.kind === 'ladder') item.scheme = `${item.ladders} ${ladderWord(item.ladders)} ${(item.rungs || []).join('-')}`;
-  else if (item.kind === 'reps') item.scheme = `${item.sets.length / sides} × ${first.reps}`;
-  else if (item.kind === 'time') item.scheme = `${item.sets.length / sides} × ${first.sec} сек`;
+  else if (item.kind === 'reps') item.scheme = `${item.sets.length / sides} × ${first.reps}${perSide}`;
+  else if (item.kind === 'time') item.scheme = `${item.sets.length / sides} × ${first.sec} сек${perSide}`;
   else if (item.kind === 'emom') item.scheme = `${item.sets.length} кругов`;
 }
 
@@ -346,6 +402,8 @@ export function planFor(state, dateISO = todayISO(), readiness = null, dayOverri
     items,
     pairs: [],
     trims: [],
+    // темп берём из истории: у всех разная скорость между подходами
+    paceFactor: paceFactor(state.sessions),
     isRest: day.focus === 'rest'
   };
 
@@ -468,8 +526,16 @@ export function tonnage(session) {
   return t;
 }
 
-// Отношение свежей нагрузки к привычной (acute:chronic).
-// Больше 1.5 — резкий скачок, типичная причина травм. Меньше 0.8 — теряешь форму.
+// Отношение свежей нагрузки к привычной (acute:chronic workload ratio).
+//
+// ВАЖНО про статус этого показателя. Сама нагрузка сессии (RPE × минуты) — это
+// метод Фостера, он валидирован как мера внутренней нагрузки. А вот ACWR как
+// предиктор травм разгромлен в литературе: Impellizzeri и соавторы (2020) показали
+// математическую связанность числителя со знаменателем, произвольность окон 7 и 28
+// дней и нестабильность отношения при малом знаменателе; они же требовали отзыва
+// исходной фигуры Blanch & Gabbett с «зонами риска».
+// Поэтому здесь это НЕ индикатор травмы и не «безопасная зона», а просто
+// скорость роста нагрузки: заметить собственный разгон, не более.
 export function acwr(sessions, dateISO = todayISO()) {
   const end = new Date(dateISO + 'T00:00:00').getTime();
   const inRange = (s, days) => {
@@ -490,10 +556,10 @@ export function acwr(sessions, dateISO = todayISO()) {
   }
   const ratio = acute / chronic;
   let status = 'ok', text = 'Нагрузка растёт ровно';
-  if (ratio > 1.5) { status = 'bad'; text = 'Резкий скачок нагрузки. Сбавь на неделю'; }
-  else if (ratio > 1.3) { status = 'warn'; text = 'Прибавляешь быстровато, следи за сном и суставами'; }
-  else if (ratio < 0.6) { status = 'warn'; text = 'Сильный провал — форма подтает'; }
-  else if (ratio < 0.8) { status = 'ok'; text = 'Разгрузка. Это нормально, если так задумано'; }
+  if (ratio > 1.5) { status = 'warn'; text = 'Эта неделя заметно тяжелее привычного'; }
+  else if (ratio > 1.3) { status = 'warn'; text = 'Прибавил ощутимо — просто знай об этом'; }
+  else if (ratio < 0.6) { status = 'ok'; text = 'Заметно легче обычного'; }
+  else if (ratio < 0.8) { status = 'ok'; text = 'Полегче обычного — норма для разгрузки'; }
   return { acute: Math.round(acute), chronic: Math.round(chronic), ratio: Math.round(ratio * 100) / 100, status, text };
 }
 

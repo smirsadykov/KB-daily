@@ -3,7 +3,7 @@ import { getState, save, update, resetAll, setBells, todayISO, exportJSON, impor
 import {
   planFor, applySession, summarizeItem, readinessMult, readinessLabel,
   waveIndex, isDeload, acwr, streak, sessionLoad, tonnage, nextStepText, stepText, dayIndex,
-  estimateMinutes
+  estimateMinutes, pairRealRest, paceFactor
 } from './progression.js';
 import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js';
 import { timer, fmt, unlockAudio } from './timer.js';
@@ -195,7 +195,7 @@ function viewReadiness(preview, wave) {
     </div>
   </div>
 
-  <h3>План на сегодня · примерно ${est} мин</h3>
+  <h3>План на сегодня · примерно ${est} мин${withR.paceFactor !== 1 ? ' (по твоему темпу)' : ''}</h3>
   ${withR.trims?.length ? `
     <div class="card tight">
       <span class="pill ${withR.overBudget ? 'warn' : 'ok'}">${withR.overBudget ? 'не влезает' : 'уложил в ' + S.settings.timeBudget + ' мин'}</span>
@@ -260,6 +260,7 @@ function viewPair(plan, p) {
   const a = plan.items[p.a], b = plan.items[p.b];
   const all = [...a.sets, ...b.sets];
   const done = all.filter(s => s.done).length;
+  const rest = pairRealRest(plan, p);
   let round = 0;
   return `
   <div class="card">
@@ -270,7 +271,7 @@ function viewPair(plan, p) {
       </div>
       <span class="pill ${done === all.length ? 'ok' : 'accent'}">${done}/${all.length}</span>
     </div>
-    <p class="muted small">Пока работает одно движение, второе отдыхает. Поэтому пауза короткая — но каждое упражнение всё равно получает свой полный отдых.</p>
+    <p class="muted small">Пауза короткая, но между своими подходами каждое движение отдыхает ${rest.a} и ${rest.b} сек. Учти: гирю оба раза держит одна рука, поэтому первым сдастся хват, а не бёдра. Поплыл хват — это сигнал добавить времени в настройках, а не дотерпеть.</p>
     <div class="sets">
       ${p.order.map(o => {
         const isA = o.side === 'a';
@@ -666,14 +667,14 @@ function viewProgress() {
   <h3>Тоннаж по неделям, тонн</h3>
   <div class="card">${barChart(weeks, { unit: ' т' })}</div>
 
-  <h3>Скачок нагрузки</h3>
+  <h3>Насколько резко прибавил</h3>
   <div class="card">
     <div class="row between">
       <span class="ex-name">${a.ratio == null ? '—' : a.ratio.toFixed(2).replace('.', ',')}</span>
       <span class="pill ${a.status === 'bad' ? 'bad' : a.status === 'warn' ? 'warn' : 'ok'}">${h(a.text)}</span>
     </div>
     ${gauge(a.ratio, a.status)}
-    <p class="muted small mb0">Свежая неделя против привычной за месяц. Зелёная зона 0,8–1,3 — здесь растут, а не ломаются.</p>
+    <p class="muted small mb0">Свежая неделя против привычной за месяц. Это не про травмы: как предиктор травм этот показатель раскритикован в науке. Просто показывает, насколько резко ты прибавил.</p>
   </div>
 
   <h3>Лестница прогрессии</h3>
@@ -989,6 +990,7 @@ const actions = {
       waveIndex: plan.waveIndex,
       mult: plan.mult,
       readiness: plan.readiness,
+      estimateMin: plan.estimate || null,
       durationMin: mins,
       sessionRpe: Math.round(rpes.reduce((a, b) => a + b, 0) / rpes.length),
       notes,
