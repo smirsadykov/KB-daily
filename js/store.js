@@ -36,6 +36,8 @@ export function defaultState() {
     onboarded: false,
     settings: {
       bells,
+      // веса, которых у тебя по две штуки — нужны для двугиревых движений
+      pairs: [],
       programId: 'daily_min',
       startDate: todayISO(),
       timeBudget: 25,

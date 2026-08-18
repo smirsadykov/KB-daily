@@ -171,10 +171,11 @@ function viewReadiness(preview, wave) {
   return `
   <div class="card">
     <div class="row between">
-      <div><div class="ex-name">${h(preview.dayName)}</div><div class="muted small">${h(preview.programName)}</div></div>
+      <div><div class="ex-name">${h(preview.dayName)}</div><div class="muted small">${h(preview.programName)} · день ${preview.dayIndex + 1} из ${PROGRAMS[preview.programId].days.length}</div></div>
       <span class="pill ${preview.deload ? 'warn' : 'accent'}">${preview.deload ? 'разгрузка' : wave.name.split('·')[1]?.trim() || ''}</span>
     </div>
     <p class="muted small mt mb0">${h(wave.hint)}</p>
+    ${nextDaysHint(preview)}
   </div>
 
   <h3>Как ты сегодня</h3>
@@ -220,6 +221,19 @@ function viewReadiness(preview, wave) {
   ${mult <= 0.7 ? '<p class="muted small center mt">Плохой день — не повод пропускать. Объём я уже урезал, сделай что получится.</p>' : ''}`;
 }
 
+
+// Что будет в ближайшие дни. Без этого промежуточный день цикла выглядит так,
+// будто программа выдала не то, что обещала названием: выбрал «Броневой
+// комплекс», а на экране махи с переносками.
+function nextDaysHint(plan) {
+  const prog = PROGRAMS[plan.programId];
+  const upcoming = [];
+  for (let k = 1; k <= 3; k++) {
+    const d = prog.days[(plan.dayIndex + k) % prog.days.length];
+    upcoming.push(d.focus === 'rest' ? 'отдых' : d.name.replace(/^[^·]+ · /, '').toLowerCase());
+  }
+  return `<div class="muted small" style="margin-top:8px;opacity:.8">Дальше: ${h(upcoming.join(' → '))}</div>`;
+}
 
 function viewSession(plan) {
   const totalSets = plan.items.reduce((a, i) => a + i.sets.length, 0);
@@ -752,6 +766,14 @@ function viewSettings() {
     </div>
   </div>
 
+  <h3>Каких гирь по две</h3>
+  <div class="card">
+    <div class="chips">
+      ${S.settings.bells.map(b => `<button class="chip ${(S.settings.pairs || []).includes(b) ? 'on' : ''}" data-act="pair" data-v="${b}">${b} кг ×2</button>`).join('')}
+    </div>
+    <p class="muted small mt mb0">Комплекс ABC в оригинале делается парой гирь одного веса. Если пары нет — приложение даёт версию под одну гирю: круг идёт на каждую сторону, работы столько же, но времени вдвое больше.</p>
+  </div>
+
   <h3>Рабочие веса</h3>
   <div class="card">
     ${[...usedEx].map(exId => {
@@ -814,6 +836,15 @@ function viewSettings() {
 
 // ── Действия ─────────────────────────────────────────────────────────────────
 const actions = {
+  pair(el) {
+    const v = +el.dataset.v;
+    update(s => {
+      const cur = s.settings.pairs || [];
+      s.settings.pairs = cur.includes(v) ? cur.filter(x => x !== v) : [...cur, v];
+      s.today = null;
+    });
+    render();
+  },
   bell(el) {
     const v = +el.dataset.v;
     const bells = S.settings.bells.includes(v) ? S.settings.bells.filter(b => b !== v) : [...S.settings.bells, v];
@@ -822,9 +853,17 @@ const actions = {
     render();
   },
   program(el) {
-    update(s => { s.settings.programId = el.dataset.v; s.today = null; });
+    const changed = S.settings.programId !== el.dataset.v;
+    update(s => {
+      s.settings.programId = el.dataset.v;
+      // Новая программа должна начинаться со своего первого дня. Без этого
+      // отсчёт продолжается от старого старта, и человек попадает в середину
+      // чужого цикла — например, выбирает ABC, а получает день махов.
+      if (changed) s.settings.startDate = todayISO();
+      s.today = null;
+    });
     render();
-    if (S.onboarded) toast('Программа сменилась');
+    if (S.onboarded && changed) toast('Программа сменилась, начинаем с первого дня');
   },
   toggle(el) {
     const k = el.dataset.k;

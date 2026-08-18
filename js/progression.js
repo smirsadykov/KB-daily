@@ -55,7 +55,7 @@ export function readinessLabel(r) {
 // ── Построение тренировки ────────────────────────────────────────────────────
 function clamp(n, lo, hi) { return Math.max(lo, Math.min(hi, n)); }
 
-function expandSets(exId, ex, step, kind, weight, mult, bells = [], track = {}) {
+function expandSets(exId, ex, step, kind, weight, mult, bells = [], track = {}, doubles = false) {
   const sets = [];
   const push = (o) => sets.push({ id: sets.length, weight, done: false, ...o });
   const sideFor = (i) => ex.side === 'each' ? (i % 2 === 0 ? 'L' : 'R') : null;
@@ -124,12 +124,16 @@ function expandSets(exId, ex, step, kind, weight, mult, bells = [], track = {}) 
 
   if (kind === 'emom') {
     let n = clamp(Math.round(step.sets * mult), 2, 16);
-    // как и в баллистике: при работе на каждую сторону кругов должно быть чётное
-    // число, иначе одна рука получит на круг больше
-    if (ex.side === 'each' && n % 2 !== 0) n += 1;
+    // Если этот вес есть парой — делаем как в оригинале, двумя гирями сразу,
+    // и круг не делится на стороны. Иначе круг идёт на каждую сторону,
+    // и тогда число кругов должно быть чётным, чтобы руки получили поровну.
+    if (!doubles && ex.side === 'each' && n % 2 !== 0) n += 1;
     // один круг комплекса = 2 заброса + 1 жим + 3 приседа (соотношение Дэна Джона)
-    for (let i = 0; i < n; i++) push({ reps: 1, side: sideFor(i), complex: true, complexReps: '2 заброса · 1 жим · 3 приседа' });
-    return { sets, rest: 0, emom: step.emom };
+    for (let i = 0; i < n; i++) {
+      push({ reps: 1, side: doubles ? null : sideFor(i), complex: true,
+             doubled: doubles, complexReps: '2 заброса · 1 жим · 3 приседа' });
+    }
+    return { sets, rest: 0, emom: step.emom, doubled: doubles };
   }
   return { sets, rest: 60, emom: null };
 }
@@ -151,7 +155,7 @@ function schemeText(kind, step, item) {
   if (kind === 'ladder') return `${item.ladders} ${ladderWord(item.ladders)} ${step.rungs.join('-')}`;
   if (kind === 'reps') return `${item.sets.length / sides} × ${step.reps}${perSide}`;
   if (kind === 'time') return `${item.sets.length / sides} × ${step.sec} сек${perSide}`;
-  if (kind === 'emom') return `${item.sets.length} кругов, каждые ${step.emom} сек`;
+  if (kind === 'emom') return `${item.sets.length} кругов, каждые ${step.emom} сек` + (item.doubled ? ' · двумя гирями' : ' · на каждую сторону');
   if (kind === 'swap') {
     const base = `${item.sets.length} × ${step.reps ?? 10}`;
     if (step.interval) return `${base} · ${step.label || 'на время'}`;
@@ -448,7 +452,8 @@ export function planFor(state, dateISO = todayISO(), readiness = null, dayOverri
     const p = state.progress[slot.ex] || { weight: state.settings.bells[0], step: 0 };
     const stepIdx = clamp(p.steps?.[slot.track] ?? p.step ?? 0, 0, track.steps.length - 1);
     const step = track.steps[stepIdx];
-    const item = expandSets(slot.ex, ex, step, track.kind, p.weight, mult, state.settings.bells, track);
+    const hasPair = (state.settings.pairs || []).includes(p.weight);
+    const item = expandSets(slot.ex, ex, step, track.kind, p.weight, mult, state.settings.bells, track, hasPair);
     item.exId = slot.ex;
     item.trackId = slot.track;
     item.kind = track.kind;
