@@ -1,6 +1,6 @@
 // Движок прогрессии: что делать сегодня и что менять после тренировки.
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=29';
-import { nextBell, prevBell, todayISO } from './store.js?v=29';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=30';
+import { nextBell, prevBell, todayISO } from './store.js?v=30';
 
 const DAY = 86400000;
 
@@ -755,4 +755,106 @@ export function streak(sessions, dateISO = todayISO()) {
     if (dates.has(iso)) { n++; cur -= DAY; } else break;
   }
   return n;
+}
+
+// ── Что дальше ───────────────────────────────────────────────────────────────
+// Приложение вело прогрессию, но молчало о двух вещах: когда лестницы
+// заканчиваются и когда упрёшься в отсутствующее железо. Обе всплывают
+// внезапно — через полтора месяца работы, когда менять что-то уже поздно.
+
+const DOUBLE_EX = (exId) => exId.startsWith('dbl_') || exId === 'swing_2kb';
+
+export function blockStatus(state, dateISO = todayISO()) {
+  const prog = PROGRAMS[state.settings.programId];
+  const seen = new Map();
+  for (const day of prog.days) for (const sl of day.slots) {
+    const key = sl.ex + '|' + sl.track;
+    if (!seen.has(key)) seen.set(key, sl);
+  }
+
+  const rows = [];
+  for (const [, sl] of seen) {
+    const tr = TRACKS[sl.track];
+    const p = state.progress[sl.ex];
+    if (!tr || !p) continue;
+    const step = clamp(p.steps?.[sl.track] ?? 0, 0, tr.steps.length - 1);
+    const last = tr.steps.length - 1;
+    rows.push({
+      exId: sl.ex, trackId: sl.track, step, last,
+      pct: last ? step / last : 1,
+      осталось: last - step,
+      weight: p.weight
+    });
+  }
+  if (!rows.length) return null;
+
+  const pct = rows.reduce((a, r) => a + r.pct, 0) / rows.length;
+
+  // Чего не хватает по железу: смотрим вперёд, а не по факту упора
+  const железо = [];
+  for (const r of rows) {
+    if (r.осталось > 3) continue;                    // ещё далеко, не пугаем
+    const nb = nextBell(r.weight, state.settings.bells);
+    const нужнаПара = DOUBLE_EX(r.exId) || prog.needsPair;
+    const когда = r.осталось === 0 ? 'уже на последней ступени —'
+      : `через ${r.осталось} ${r.осталось === 1 ? 'ступень' : 'ступени'}`;
+    if (!nb) {
+      железо.push({ exId: r.exId, осталось: r.осталось,
+        текст: `${EXERCISES[r.exId].short}: ${когда} понадобится гиря тяжелее ${r.weight} кг` });
+    } else if (нужнаПара && !(state.settings.pairs || []).includes(nb)) {
+      железо.push({ exId: r.exId, осталось: r.осталось,
+        текст: `${EXERCISES[r.exId].short}: ${когда} понадобится ПАРА гирь по ${nb} кг` });
+    }
+  }
+
+  return { pct, rows, железо, наИсходе: pct >= 0.7, программа: prog.name };
+}
+
+// Какие паттерны программа реально грузит — считаем подходами за цикл,
+// а не по названиям упражнений.
+function patternLoad(programId) {
+  const prog = PROGRAMS[programId];
+  const load = {};
+  for (const day of prog.days) for (const sl of day.slots) {
+    const ex = EXERCISES[sl.ex];
+    if (!ex) continue;
+    const tr = TRACKS[sl.track];
+    const mid = tr.steps[Math.floor(tr.steps.length / 2)] || {};
+    const sets = mid.sets || (mid.ladders ? mid.ladders * (mid.rungs?.length || 1) : 3);
+    // комплекс грузит несколько паттернов сразу — делим подходы между ними
+    const patterns = ex.covers || [ex.pattern];
+    for (const pt of patterns) load[pt] = (load[pt] || 0) + sets / patterns.length;
+  }
+  const total = Object.values(load).reduce((a, b) => a + b, 0) || 1;
+  for (const k of Object.keys(load)) load[k] = load[k] / total;
+  return load;
+}
+
+// Что взять следующим блоком. Считаем две вещи: чего в текущей программе
+// мало (дополнение) и во что она упирается (специализация).
+export function nextBlockSuggestions(state) {
+  const cur = state.settings.programId;
+  const curLoad = patternLoad(cur);
+  const дефицит = ['hinge', 'squat', 'press', 'pull', 'carry']
+    .filter(p => (curLoad[p] || 0) < 0.12);
+
+  const варианты = [];
+  for (const [pid, prog] of Object.entries(PROGRAMS)) {
+    if (pid === cur) continue;
+    const load = patternLoad(pid);
+    // насколько программа закрывает то, чего у тебя мало
+    const покрытие = дефицит.reduce((a, p) => a + (load[p] || 0), 0);
+    // насколько она углубляет то, чем ты уже занимаешься
+    const углубление = Object.entries(curLoad)
+      .reduce((a, [p, v]) => a + Math.min(v, load[p] || 0) * (load[p] || 0), 0);
+    варианты.push({ pid, name: prog.name, tag: prog.tag, покрытие, углубление });
+  }
+
+  const дополнение = [...варианты].sort((a, b) => b.покрытие - a.покрытие)[0];
+  const специализация = [...варианты].sort((a, b) => b.углубление - a.углубление)[0];
+  return {
+    дефицит,
+    дополнение: дополнение?.покрытие > 0.15 ? дополнение : null,
+    специализация: специализация?.pid !== дополнение?.pid ? специализация : null
+  };
 }

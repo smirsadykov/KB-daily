@@ -1,17 +1,17 @@
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel } from './data.js?v=29';
-import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON } from './store.js?v=29';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel } from './data.js?v=30';
+import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON } from './store.js?v=30';
 import {
   planFor, applySession, summarizeItem, readinessMult, readinessLabel,
   waveIndex, weekIndex, wave, isDeload, acwr, streak, sessionLoad, tonnage, nextStepText, stepText, dayIndex,
-  estimateMinutes, pairRealRest, paceFactor
-} from './progression.js?v=29';
-import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=29';
-import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=29';
+  estimateMinutes, pairRealRest, paceFactor, blockStatus, nextBlockSuggestions
+} from './progression.js?v=30';
+import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=30';
+import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=30';
 
 // byId должен видеть и свои записи пользователя, поэтому оборачиваем
 const byId = (id) => suppById(id, S);
-import { timer, fmt, unlockAudio } from './timer.js?v=29';
-import { barChart, gauge } from './charts.js?v=29';
+import { timer, fmt, unlockAudio } from './timer.js?v=30';
+import { barChart, gauge } from './charts.js?v=30';
 
 // ── Мелкие помощники ─────────────────────────────────────────────────────────
 const $ = (s, r = document) => r.querySelector(s);
@@ -958,6 +958,47 @@ function viewProgress() {
     </table>
     <p class="muted small mt mb0">Две удачные тренировки подряд — шаг вперёд. Кончились шаги — берёшь гирю тяжелее и начинаешь объём заново.</p>
   </div>
+
+  ${(() => {
+    const b = blockStatus(S);
+    if (!b) return '';
+    const s = nextBlockSuggestions(S);
+    const pct = Math.round(b.pct * 100);
+    return `
+    <h3>Что дальше</h3>
+    <div class="card">
+      <div class="row between">
+        <div class="grow"><div class="ex-name">Блок пройден на ${pct}%</div>
+        <div class="muted small">${h(b.программа)}</div></div>
+        <span class="pill ${b.наИсходе ? 'warn' : 'ok'}">${b.наИсходе ? 'на исходе' : 'в работе'}</span>
+      </div>
+      <div class="ex-prog"><i style="width:${pct}%"></i></div>
+
+      ${b.железо.length ? `
+        <div class="muted small mt" style="color:var(--warn)">
+          <b>Упрётся в железо:</b>
+          ${b.железо.map(x => `<div style="margin-top:4px">${h(x.текст)}</div>`).join('')}
+          <div style="margin-top:6px;opacity:.85">Это стоит знать заранее: гирю нужно успеть достать, а не обнаружить упор посреди блока.</div>
+        </div>` : ''}
+
+      ${b.наИсходе ? `
+        <p class="muted small mt mb0">Лестницы почти пройдены. Дальше есть два разумных хода:</p>
+        ${s.дополнение ? `
+          <div class="card tight tap" role="button" tabindex="0" data-act="program" data-v="${s.дополнение.pid}" style="margin-top:8px">
+            <div class="row between"><div class="ex-name" style="font-size:15px">Добрать недостающее</div>
+            <span class="pill">${h(s.дополнение.tag)}</span></div>
+            <div class="muted small mt">${h(s.дополнение.name)}${s.дефицит.length ? ` — закроет то, чего в текущей программе мало` : ''}</div>
+          </div>` : ''}
+        ${s.специализация ? `
+          <div class="card tight tap" role="button" tabindex="0" data-act="program" data-v="${s.специализация.pid}" style="margin-top:8px">
+            <div class="row between"><div class="ex-name" style="font-size:15px">Углубить то же самое</div>
+            <span class="pill">${h(s.специализация.tag)}</span></div>
+            <div class="muted small mt">${h(s.специализация.name)} — тот же упор, но объёма на нём в разы больше</div>
+          </div>` : ''}
+        <p class="muted small mt mb0">Прогресс по каждой лестнице хранится отдельно, так что переключение ничего не потеряет — вернёшься на то же место.</p>
+      ` : `<p class="muted small mt mb0">Пока идёшь по лестницам. Подскажу, когда блок будет заканчиваться.</p>`}
+    </div>` ;
+  })()}
 
   <h3>Где ты в блоке</h3>
   <div class="card">

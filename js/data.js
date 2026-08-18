@@ -84,7 +84,7 @@ export const EXERCISES = {
   abc: {
     name: 'Комплекс ABC (2 заброса + жим + 3 приседа)',
     short: 'ABC',
-    kind: 'grind', pattern: 'complex', side: 'each',
+    kind: 'grind', pattern: 'complex', covers: ['hinge', 'press', 'squat'], side: 'each',
     load: 'grind',
     cues: [
       'Один круг = 2 заброса, 1 жим, 3 фронтальных приседа. Потом другая сторона.',
@@ -138,7 +138,7 @@ export const EXERCISES = {
   qd_pair: {
     name: 'Махи + взрывные отжимания',
     short: 'Q&D',
-    kind: 'grind', pattern: 'complex', side: 'both',
+    kind: 'grind', pattern: 'complex', covers: ['hinge', 'press'], side: 'both',
     load: 'ballistic',
     cues: [
       'Два движения чередуются: 10 махов, через полторы минуты 10 взрывных отжиманий, и так по кругу.',
@@ -163,7 +163,7 @@ export const EXERCISES = {
     short: 'Связка',
     // Стороны чередуются ВНУТРИ непрерывного блока, а не разными подходами —
     // иначе движок разбивает один блок работы на два и требует между ними отдыха.
-    kind: 'grind', pattern: 'complex', side: 'both',
+    kind: 'grind', pattern: 'complex', covers: ['hinge', 'press', 'squat'], side: 'both',
     load: 'grind',
     cues: [
       'Одиночные повторы без остановки: заброс, жим, присед — потом другая сторона.',
@@ -175,7 +175,7 @@ export const EXERCISES = {
   humane_burpee: {
     name: 'Гуманное бёрпи',
     short: 'Бёрпи',
-    kind: 'grind', pattern: 'complex', side: 'both',
+    kind: 'grind', pattern: 'complex', covers: ['hinge', 'squat', 'press'], side: 'both',
     load: 'ballistic',
     cues: [
       'Одна ступень = 15 махов, потом приседы, потом отжимания. Число приседов и отжиманий убывает: 5, 4, 3, 2, 1.',
@@ -211,7 +211,7 @@ export const EXERCISES = {
   ab_pair: {
     name: 'Махи + трастеры',
     short: 'Махи+трастер',
-    kind: 'grind', pattern: 'complex', side: 'both',
+    kind: 'grind', pattern: 'complex', covers: ['hinge', 'squat', 'press'], side: 'both',
     load: 'ballistic',
     cues: [
       'Двумя гирями. Два движения чередуются каждую минуту: минута махов, минута трастеров, и так шесть кругов.',
