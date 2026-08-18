@@ -1,6 +1,6 @@
 // Движок прогрессии: что делать сегодня и что менять после тренировки.
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=27';
-import { nextBell, prevBell, todayISO } from './store.js?v=27';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=28';
+import { nextBell, prevBell, todayISO } from './store.js?v=28';
 
 const DAY = 86400000;
 
@@ -85,11 +85,16 @@ function expandSets(exId, ex, step, kind, weight, mult, bells = [], track = {}, 
   if (kind === 'reps') {
     // потолок должен быть выше конца самой длинной лестницы этого типа
     const n = clamp(Math.round(step.sets * mult), 1, 24);
+    // swapIn: столько кругов уже делается следующей гирей. Нужен там, где
+    // диапазон повторов закончился, а прыгать сразу на треть веса нельзя.
+    const heavier = step.swapIn ? (nextBell(weight, bells) ?? weight) : null;
+    const heavyN = step.swapIn ? Math.min(step.swapIn, n) : 0;
     for (let i = 0; i < n; i++) {
-      if (ex.side === 'each') { push({ reps: step.reps, side: 'L' }); push({ reps: step.reps, side: 'R' }); }
-      else push({ reps: step.reps });
+      const w = i < heavyN ? heavier : weight;
+      if (ex.side === 'each') { push({ reps: step.reps, side: 'L', weight: w }); push({ reps: step.reps, side: 'R', weight: w }); }
+      else push({ reps: step.reps, weight: w });
     }
-    return { sets, rest: step.rest, emom: null };
+    return { sets, rest: step.rest, emom: null, heavy: heavyN };
   }
   if (kind === 'time') {
     const n = clamp(Math.round(step.sets * mult), 1, 8);
@@ -134,13 +139,13 @@ function expandSets(exId, ex, step, kind, weight, mult, bells = [], track = {}, 
     if (!doubles && !track.alt && ex.side === 'each' && n % 2 !== 0) n += 1;
     // Подпись подхода берём из трека: у ABC это состав круга, у Q&D —
     // название движения, потому что там два движения чередуются.
-    const alt = track.alt;
+    const alt = step.alt || track.alt;
     for (let i = 0; i < n; i++) {
       push({ reps: 1, side: doubles || alt ? null : sideFor(i), complex: true,
              doubled: doubles, alt: !!alt,
              complexReps: alt ? alt[i % alt.length] : '2 заброса · 1 жим · 3 приседа' });
     }
-    return { sets, rest: 0, emom: step.emom, doubled: doubles, alt: !!track.alt };
+    return { sets, rest: 0, emom: step.emom, doubled: doubles, alt: !!alt };
   }
   return { sets, rest: 60, emom: null };
 }
@@ -160,7 +165,7 @@ function schemeText(kind, step, item) {
   const perSide = sides === 2 ? ' на сторону' : '';
   if (kind === 'ballistic') return `${item.sets.length} × ${step.reps}` + (item.heavy ? `, из них ${item.heavy} новым весом` : '');
   if (kind === 'ladder') return `${item.ladders} ${ladderWord(item.ladders)} ${step.rungs.join('-')}`;
-  if (kind === 'reps') return `${item.sets.length / sides} × ${step.reps}${perSide}`;
+  if (kind === 'reps') return `${item.sets.length / sides} × ${step.reps}${perSide}` + (item.heavy ? `, из них ${item.heavy} новым весом` : '');
   if (kind === 'time') return step.sec >= 120
     ? `${item.sets.length / sides} × ${Math.round(step.sec / 60)} мин${perSide}`
     : `${item.sets.length / sides} × ${step.sec} сек${perSide}`;
@@ -337,7 +342,7 @@ function refreshScheme(item) {
   const perSide = sides === 2 ? ' на сторону' : '';
   if (item.kind === 'ballistic') item.scheme = `${item.sets.length} × ${first.reps}` + (item.heavy ? `, из них ${item.heavy} новым весом` : '');
   else if (item.kind === 'ladder') item.scheme = `${item.ladders} ${ladderWord(item.ladders)} ${(item.rungs || []).join('-')}`;
-  else if (item.kind === 'reps') item.scheme = `${item.sets.length / sides} × ${first.reps}${perSide}`;
+  else if (item.kind === 'reps') item.scheme = `${item.sets.length / sides} × ${first.reps}${perSide}` + (item.heavy ? `, из них ${item.heavy} новым весом` : '');
   else if (item.kind === 'time') item.scheme = first.sec >= 120
     ? `${item.sets.length / sides} × ${Math.round(first.sec / 60)} мин${perSide}`
     : `${item.sets.length / sides} × ${first.sec} сек${perSide}`;
