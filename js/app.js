@@ -120,6 +120,13 @@ function viewOnboarding() {
       <div class="muted small mt">${h(p.desc)}</div>
       <div class="muted small" style="opacity:.75">${h(p.for)}</div>
       ${p.origin ? `<div class="muted small" style="opacity:.6;margin-top:6px">Происхождение: ${h(p.origin)}</div>` : ''}
+      ${p.gives ? `<details class="tips" style="margin-top:8px">
+        <summary>Что даёт и чего не даёт</summary>
+        <div class="muted small" style="margin-top:6px"><b>Даёт:</b></div>
+        <ul class="cues">${p.gives.map(x => `<li>${h(x)}</li>`).join('')}</ul>
+        <div class="muted small"><b>Не даёт:</b></div>
+        <ul class="cues">${p.limits.map(x => `<li>${h(x)}</li>`).join('')}</ul>
+      </details>` : ''}
     </div>`).join('')}
 
   <div class="card">
@@ -926,6 +933,13 @@ function viewSettings() {
       <div class="row between"><div class="ex-name">${h(p.name)}</div><span class="pill ${S.settings.programId === id ? 'accent' : ''}">${h(p.tag)}</span></div>
       <div class="muted small mt">${h(p.desc)}</div>
       ${p.origin ? `<div class="muted small" style="opacity:.6;margin-top:6px">Происхождение: ${h(p.origin)}</div>` : ''}
+      ${p.gives ? `<details class="tips" style="margin-top:8px">
+        <summary>Что даёт и чего не даёт</summary>
+        <div class="muted small" style="margin-top:6px"><b>Даёт:</b></div>
+        <ul class="cues">${p.gives.map(x => `<li>${h(x)}</li>`).join('')}</ul>
+        <div class="muted small"><b>Не даёт:</b></div>
+        <ul class="cues">${p.limits.map(x => `<li>${h(x)}</li>`).join('')}</ul>
+      </details>` : ''}
     </div>`).join('')}
 
   <h3>Сколько есть времени</h3>
