@@ -422,4 +422,67 @@ console.log('\n=== 13. Программа главнее календаря ==='
   }
 }
 console.log(`  всего проверок ${checks}, провалов ${fails}`);
+
+// ═══ 14. Урезание под бюджет времени ═══════════════════════════════════════
+// Три бага, найденные месячным прогоном (tools/month.mjs). Все три —
+// про то, что приложение молча выдавало желаемое за действительное.
+console.log('\n=== 14. Бюджет времени не врёт про прогресс ===');
+{
+  // (а) откат после сброса веса не должен возвращать более тяжёлую гирю
+  for (const [tid, track] of Object.entries(TRACKS)) {
+    if (!track.steps?.length) continue;
+    const st = mkState({ settings: { bells: [16, 24, 32], timeBudget: 30 } });
+    // прогоняем движок через настоящий сброс веса: два провала подряд на нулевой ступени
+    const exId = Object.keys(EXERCISES).find(k => EXERCISES[k].kind !== 'mobility');
+    const p = st.progress[exId]; p.weight = 24; p.steps = { [tid]: 0 }; p.fails = 1; p.wins = 0;
+    const ses = { id: 1, date: today, deload: false, durationMin: 20, sessionRpe: 9,
+      entries: [{ exId, trackId: tid, kind: track.kind, weight: 24, plannedSets: 5, doneSets: 2,
+                  doneReps: 20, doneSec: 0, complete: false, rpe: 9, perCycle: 3, cycleDays: 7 }] };
+    applySession(st, ses);
+    if (p.weight === 16) {
+      const шаг = track.steps[p.steps[tid] ?? 0];
+      ok(!шаг.swapIn && !шаг.heavy,
+         `${tid}: после сброса до 16 кг ступень не должна возвращать гирю 24 кг`);
+    }
+  }
+
+  // (б) план либо влезает в бюджет, либо остался без подсобки — молчаливого перебора быть не может
+  for (const pid of Object.keys(PROGRAMS)) {
+    for (const бюджет of [15, 20, 30, 45]) {
+      for (const ст of [0, 4, 8]) {
+        const st = mkState({ settings: { programId: pid, timeBudget: бюджет, bells: [16, 24, 32], pairs: [24] } });
+        for (const pr of Object.values(st.progress)) { pr.step = ст; pr.steps = new Proxy({}, { get: () => ст }); }
+        for (let d = 0; d < PROGRAMS[pid].days.length; d++) {
+          const plan = planFor(st, today, null, d);
+          if (plan.isRest) continue;
+          ok(!plan.overBudget || plan.items.length === 1,
+             `${pid} @${бюджет} мин, ступень ${ст + 1}: не влезает в бюджет, хотя подсобка ещё в плане`);
+          ok(plan.items.every(it => (it.fullSets ?? it.sets.length) >= it.sets.length),
+             `${pid} @${бюджет} мин: срезанных подходов больше, чем было запланировано`);
+        }
+      }
+    }
+  }
+
+  // (в) урезанная под время тренировка не подтверждает ступень
+  for (const pid of Object.keys(PROGRAMS)) {
+    const st = mkState({ settings: { programId: pid, timeBudget: 15, bells: [16, 24, 32] } });
+    const plan = planFor(st, today, null, PROGRAMS[pid].days.findIndex(d => d.focus !== 'rest'));
+    if (plan.isRest) continue;
+    const срезан = plan.items.find(it => it.cutForTime);
+    if (!срезан) continue;
+    const пр = st.progress[срезан.exId]; пр.steps ||= {};
+    const было = { w: пр.weight, s: пр.steps[срезан.trackId] ?? 0 };
+    applySession(st, { id: 1, date: today, deload: false, durationMin: 15, sessionRpe: 7,
+      entries: [{ exId: срезан.exId, trackId: срезан.trackId, kind: срезан.kind, weight: срезан.weight,
+                  plannedSets: срезан.sets.length, doneSets: срезан.sets.length,
+                  doneReps: 50, doneSec: 0, complete: true, cutForTime: true, rpe: 7,
+                  perCycle: срезан.perCycle, cycleDays: срезан.cycleDays }] });
+    const стало = { w: пр.weight, s: пр.steps[срезан.trackId] ?? 0 };
+    ok(было.w === стало.w && было.s === стало.s,
+       `${pid}: тренировка, срезанная под бюджет, не должна двигать ступень (${было.s} → ${стало.s})`);
+  }
+}
+console.log(`  всего проверок ${checks}, провалов ${fails}`);
+
 console.log(`\nГОТОВО: ${checks} проверок, ${fails} провалов`);

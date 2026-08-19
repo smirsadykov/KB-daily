@@ -1,17 +1,17 @@
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=34';
-import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON } from './store.js?v=34';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=35';
+import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON } from './store.js?v=35';
 import {
   planFor, applySession, summarizeItem, readinessMult, readinessLabel,
   waveIndex, weekIndex, wave, isDeload, acwr, streak, sessionLoad, tonnage, nextStepText, stepText, dayIndex,
   estimateMinutes, pairRealRest, paceFactor, blockStatus, nextBlockSuggestions, commitCycle
-} from './progression.js?v=34';
-import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=34';
-import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=34';
+} from './progression.js?v=35';
+import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=35';
+import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=35';
 
 // byId должен видеть и свои записи пользователя, поэтому оборачиваем
 const byId = (id) => suppById(id, S);
-import { timer, fmt, unlockAudio } from './timer.js?v=34';
-import { barChart, gauge } from './charts.js?v=34';
+import { timer, fmt, unlockAudio } from './timer.js?v=35';
+import { barChart, gauge } from './charts.js?v=35';
 
 // ── Мелкие помощники ─────────────────────────────────────────────────────────
 const $ = (s, r = document) => r.querySelector(s);
@@ -322,6 +322,7 @@ function viewReadiness(preview, wave, dayOverride = null) {
     <div class="card tight">
       <span class="pill ${withR.overBudget ? 'warn' : 'ok'}">${withR.overBudget ? 'не влезает' : 'уложил в ' + S.settings.timeBudget + ' мин'}</span>
       <div class="muted small mt mb0">${withR.trims.map(h).join(' · ')}</div>
+      ${withR.items.some(it => it.cutForTime) ? `<div class="muted small">Объём срезан под время, поэтому ступень сегодня не засчитаю — иначе номер ступени рос бы, а работы было бы столько же. Программе целиком нужно около ${withR.fullEstimate} мин.</div>` : ''}
       ${withR.overBudget ? `<div class="muted small">Короче уже не выходит без потери смысла. Либо ${est} минут, либо подними бюджет в настройках.</div>` : ''}
     </div>` : ''}
   ${withR.items.map((it, i) => {
@@ -1367,6 +1368,8 @@ const actions = {
         plannedSets: sum.totalSets, doneSets: sum.doneSets,
         plannedReps: sum.plannedReps, doneReps: sum.doneReps, doneSec: sum.doneSec,
         complete: sum.complete, rpe: finishDraft.rpe[it.exId] ?? 7, step: it.step,
+        // урезал ли объём бюджет времени — от этого зависит, засчитывать ступень
+        cutForTime: !!it.cutForTime, fullSets: it.fullSets,
         perCycle: it.perCycle, cycleDays: it.cycleDays
       };
     }).filter(e => e.doneSets > 0);

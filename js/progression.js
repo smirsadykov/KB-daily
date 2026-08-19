@@ -1,6 +1,6 @@
 // Движок прогрессии: что делать сегодня и что менять после тренировки.
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=34';
-import { nextBell, prevBell, todayISO } from './store.js?v=34';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=35';
+import { nextBell, prevBell, todayISO } from './store.js?v=35';
 
 const DAY = 86400000;
 
@@ -411,6 +411,11 @@ function refreshScheme(item) {
 export function fitToBudget(plan, budgetMin) {
   plan.trims = [];
   plan.pairs = plan.pairs || [];
+  // сколько подходов полагалось по ступени — понадобится, чтобы не засчитать
+  // за пройденную ступень тренировку, которую урезал бюджет времени
+  for (const it of plan.items) it.fullSets = it.sets.length;
+  // сколько времени просит программа целиком, без всяких урезаний
+  plan.fullEstimate = Math.round(estimateSeconds(plan) / 60);
   if (!budgetMin) { plan.estimate = estimateMinutes(plan); return plan; }
   const budget = budgetMin * 60;
   const over = () => estimateSeconds(plan) > budget;
@@ -451,9 +456,11 @@ export function fitToBudget(plan, budgetMin) {
   const shortened = plan.items.some(it => it.rest !== undefined);
   if (shortened && plan.trims.length === 0 && over() === false) { /* отдых уже урезан ниже */ }
 
-  // 3. Подсобка — режем с конца, там переноски и тяги
+  // 3. Подсобка — режем с конца, там переноски и тяги.
+  // Предел большой намеренно: у длинных протоколов (80 подходов в VWC)
+  // двадцати шагов не хватало, и план молча вылезал за бюджет.
   guard = 0;
-  while (over() && guard++ < 20) {
+  while (over() && guard++ < 500) {
     let changed = false;
     for (let i = plan.items.length - 1; i > 0; i--) {
       if (plan.pairs.some(p => p.a === i || p.b === i)) continue;
@@ -467,9 +474,23 @@ export function fitToBudget(plan, budgetMin) {
     if (!changed) break;
   }
 
+  // 3.5. Подсобку убираем целиком, и только потом трогаем основное движение.
+  // Раньше у подсобки был пол в один полный круг: она росла по своей лестнице,
+  // съедала бюджет, и главное движение усыхало. В «10 000 махов» это выглядело
+  // так: махи падали с 300 до 100 за месяц, хотя махи и есть вся программа.
+  // Тренер в такой ситуации выкидывает жим, а не махи.
+  guard = 0;
+  while (over() && plan.items.length > 1 && guard++ < 20) {
+    const k = plan.items.length - 1;
+    plan.trims.push(`${plan.items[k].name.toLowerCase()}: убрал, времени хватает только на главное`);
+    plan.items.splice(k, 1);
+    plan.pairs = plan.pairs.filter(pp => pp.a !== k && pp.b !== k)
+      .map(pp => ({ ...pp, a: pp.a > k ? pp.a - 1 : pp.a, b: pp.b > k ? pp.b - 1 : pp.b }));
+  }
+
   // 4. Основное движение — только если иначе никак
   guard = 0;
-  while (over() && guard++ < 20) {
+  while (over() && guard++ < 500) {
     let changed = false;
     for (let i = 0; i < plan.items.length; i++) {
       if (dropRound(plan.items[i])) {
@@ -498,6 +519,10 @@ export function fitToBudget(plan, budgetMin) {
       p.order = interleave(plan.items[p.a].sets.length, plan.items[p.b].sets.length);
     }
   }
+
+  // Урезание отдыха объём не трогает, а вот снятые круги — трогают.
+  // Помечаем только их: такая тренировка не подтверждает ступень.
+  for (const it of plan.items) it.cutForTime = it.sets.length < (it.fullSets ?? it.sets.length);
 
   // Пересобираем подписи и чередование после всех урезаний,
   // иначе на экране останутся числа из исходного плана
@@ -656,6 +681,23 @@ function stepJump(rpe, complete) {
   return null;              // дальше работает обычный счётчик удачных тренировок
 }
 
+
+// Куда ставить человека после того, как ему сбросили вес гири.
+// Раньше здесь было «почти вершина лестницы» (steps.length - 3), и это ломалось:
+// у многих лестниц верхние ступени — это swapIn, то есть часть подходов делается
+// СЛЕДУЮЩЕЙ гирей. Человек только что провалил 24 кг, его переводили на 16 —
+// и выдавали ступень, где 6 подходов из 10 снова с 24 кг. У лестниц S&S верх — это
+// работа по нормативу. Теперь берём середину той части лестницы, где работа идёт
+// одной гирей: нагрузка настоящая, но потолок ещё впереди.
+function stepAfterWeightDrop(track) {
+  if (track.kind === 'swap') return 0;
+  const свои = track.steps
+    .map((s, i) => ({ s, i }))
+    .filter(x => !x.s.swapIn && !x.s.heavy);
+  if (!свои.length) return 0;
+  return свои[Math.floor((свои.length - 1) / 2)].i;
+}
+
 export function applySession(state, session) {
   const changes = [];
   const deload = session.deload;
@@ -689,6 +731,20 @@ export function applySession(state, session) {
       writeStep(track.reset ?? 0);
       return 'weight';
     };
+
+    // ── Тренировку урезал бюджет времени ──
+    // Человек сделал всё, что ему дали, но дали меньше ступени. Засчитывать
+    // это за пройденную ступень нельзя: иначе номер ступени растёт, а работы
+    // столько же, и через месяц «ступень 5 из 9» означает ту же первую неделю.
+    // Провалы при этом считаем: если и урезанное далось тяжело — это факт.
+    if (entry.cutForTime && (entry.complete && rpe <= 8)) {
+      p.wins = 0;
+      changes.push({
+        exId: entry.exId, type: 'hold',
+        text: `${ex.short}: срезали под бюджет времени — ступень не засчитываю. Добавь минут в настройках, иначе прогресс встанет`
+      });
+      continue;
+    }
 
     // ── Нагрузка была явно мимо: правим сразу, не копя подтверждения ──
     const jump = deload ? null : stepJump(rpe, entry.complete);
@@ -739,7 +795,7 @@ export function applySession(state, session) {
         const pb = prevBell(p.weight, state.settings.bells);
         if (pb) {
           p.weight = pb;
-          writeStep(Math.max(0, track.steps.length - 3));
+          writeStep(stepAfterWeightDrop(track));
           changes.push({ exId: entry.exId, type: 'weight-down', text: `${ex.short}: вернулись на ${pb} кг` });
         } else {
           changes.push({ exId: entry.exId, type: 'hold', text: `${ex.short}: держим как есть` });
