@@ -1,6 +1,6 @@
 // Движок прогрессии: что делать сегодня и что менять после тренировки.
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=35';
-import { nextBell, prevBell, todayISO } from './store.js?v=35';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=36';
+import { nextBell, prevBell, todayISO } from './store.js?v=36';
 
 const DAY = 86400000;
 
@@ -264,6 +264,8 @@ const SWITCH = 20;
 
 // Ниже этих значений отдых перестаёт быть отдыхом: жим превращается
 // в выносливость, а махи — в кашу по технике.
+// Пол отдыха: ниже него движение меняет смысл. Используется, чтобы проверить
+// реальный отдых внутри парной работы, объём по нему больше не режется.
 const REST_FLOOR = { ballistic: 30, ladder: 45, reps: 45, time: 30, emom: 0, swap: 30, interval: 120 };
 
 export function estimateSeconds(plan) {
@@ -364,25 +366,6 @@ function interleave(aLen, bLen) {
   return order;
 }
 
-function dropRound(item) {
-  // объём S&S и длительность сета в гиревом спорте — это и есть программа,
-  // резать их ради минут значит подменить её другой программой
-  if (item.kind === 'swap' || item.kind === 'interval') return false;
-  // снимаем не отдельный подход, а целый круг: лестницу целиком
-  // или пару подходов на левую и правую, иначе стороны разъедутся
-  if (item.kind === 'ladder' && item.rungs) {
-    const perLadder = item.rungs.length * (item.sets.some(s => s.side) ? 2 : 1);
-    if (item.sets.length - perLadder < perLadder) return false;
-    item.sets = item.sets.slice(0, item.sets.length - perLadder);
-    item.ladders = Math.max(1, (item.ladders || 1) - 1);
-    return true;
-  }
-  const chunk = item.sets.some(s => s.side) ? 2 : 1;
-  const min = item.kind === 'ballistic' ? 4 : 2;
-  if (item.sets.length - chunk < min) return false;
-  item.sets = item.sets.slice(0, item.sets.length - chunk);
-  return true;
-}
 
 // Подпись вида «8 × 10» пересчитывается по фактическим подходам
 function refreshScheme(item) {
@@ -408,129 +391,32 @@ function refreshScheme(item) {
   else if (item.kind === 'interval') item.scheme = `${item.sets.length} × ${Math.round(first.sec / 60)} мин @ ${first.rpm}`;
 }
 
-export function fitToBudget(plan, budgetMin) {
-  plan.trims = [];
+// Сборка плана. Времени человек больше не назначает: сколько занимает
+// тренировка — решает программа. Здесь ничего не режется, объём ровно тот,
+// что предписывает ступень лестницы. Единственное, что делается, — парная
+// работа там, где её требует сам источник программы (в «10 000 махов»
+// силовое движение выполняется между подходами махов, это часть протокола
+// Дэна Джона, а не способ сэкономить минуты).
+export function finalizePlan(plan, day) {
   plan.pairs = plan.pairs || [];
-  // сколько подходов полагалось по ступени — понадобится, чтобы не засчитать
-  // за пройденную ступень тренировку, которую урезал бюджет времени
-  for (const it of plan.items) it.fullSets = it.sets.length;
-  // сколько времени просит программа целиком, без всяких урезаний
-  plan.fullEstimate = Math.round(estimateSeconds(plan) / 60);
-  if (!budgetMin) { plan.estimate = estimateMinutes(plan); return plan; }
-  const budget = budgetMin * 60;
-  const over = () => estimateSeconds(plan) > budget;
+  plan.trims = [];
 
-  // 1. Пары — самая дешёвая экономия, объём не страдает вообще
-  if (over()) {
-    for (let i = 0; i < plan.items.length && over(); i++) {
-      for (let j = i + 1; j < plan.items.length; j++) {
-        const used = plan.pairs.some(p => p.a === i || p.b === i || p.a === j || p.b === j);
-        if (used || !canPair(plan.items[i], plan.items[j])) continue;
-        plan.pairs.push({ a: i, b: j, rest: 25, order: interleave(plan.items[i].sets.length, plan.items[j].sets.length) });
-        plan.trims.push(`${plan.items[i].name.toLowerCase()} и ${plan.items[j].name.toLowerCase()} идут в паре`);
-        break;
-      }
-    }
-  }
-
-  // 2. Отдых — до пола, ниже которого движение меняет смысл
-  let guard = 0;
-  while (over() && guard++ < 40) {
-    let changed = false;
-    for (const p of plan.pairs) {
-      if (p.rest > 15) { p.rest -= 5; changed = true; }
-    }
-    plan.items.forEach((it, i) => {
-      if (plan.pairs.some(p => p.a === i || p.b === i)) return;
-      // В S&S сокращение отдыха — это не экономия времени, а следующая ступень
-      // программы (работа на норматив). Двигать её ради бюджета нельзя.
-      // В гиревом спорте отдых между сетами задан задачей сета.
-      if (it.kind === 'swap' || it.kind === 'interval') return;
-      // трек может объявить, что его отдых задан программой и не трогается
-      if (TRACKS[it.trackId]?.fixedRest) return;
-      const floor = REST_FLOOR[it.kind] ?? 45;
-      if ((it.rest || 0) > floor) { it.rest = Math.max(floor, it.rest - 15); changed = true; }
-    });
-    if (!changed) break;
-  }
-  const shortened = plan.items.some(it => it.rest !== undefined);
-  if (shortened && plan.trims.length === 0 && over() === false) { /* отдых уже урезан ниже */ }
-
-  // 3. Подсобка — режем с конца, там переноски и тяги.
-  // Предел большой намеренно: у длинных протоколов (80 подходов в VWC)
-  // двадцати шагов не хватало, и план молча вылезал за бюджет.
-  guard = 0;
-  while (over() && guard++ < 500) {
-    let changed = false;
-    for (let i = plan.items.length - 1; i > 0; i--) {
-      if (plan.pairs.some(p => p.a === i || p.b === i)) continue;
-      if (dropRound(plan.items[i])) {
-        changed = true;
-        if (!plan.trims.some(t => t.includes(plan.items[i].name.toLowerCase() + ':')))
-          plan.trims.push(`${plan.items[i].name.toLowerCase()}: меньше подходов`);
-        break;
-      }
-    }
-    if (!changed) break;
-  }
-
-  // 3.5. Подсобку убираем целиком, и только потом трогаем основное движение.
-  // Раньше у подсобки был пол в один полный круг: она росла по своей лестнице,
-  // съедала бюджет, и главное движение усыхало. В «10 000 махов» это выглядело
-  // так: махи падали с 300 до 100 за месяц, хотя махи и есть вся программа.
-  // Тренер в такой ситуации выкидывает жим, а не махи.
-  guard = 0;
-  while (over() && plan.items.length > 1 && guard++ < 20) {
-    const k = plan.items.length - 1;
-    plan.trims.push(`${plan.items[k].name.toLowerCase()}: убрал, времени хватает только на главное`);
-    plan.items.splice(k, 1);
-    plan.pairs = plan.pairs.filter(pp => pp.a !== k && pp.b !== k)
-      .map(pp => ({ ...pp, a: pp.a > k ? pp.a - 1 : pp.a, b: pp.b > k ? pp.b - 1 : pp.b }));
-  }
-
-  // 4. Основное движение — только если иначе никак
-  guard = 0;
-  while (over() && guard++ < 500) {
-    let changed = false;
+  if (day?.pair) {
     for (let i = 0; i < plan.items.length; i++) {
-      if (dropRound(plan.items[i])) {
-        changed = true;
-        const name = plan.items[i].name.toLowerCase();
-        if (!plan.trims.some(t => t.startsWith(name + ':'))) plan.trims.push(`${name}: срезал объём, времени не хватало`);
+      for (let j = i + 1; j < plan.items.length; j++) {
+        const занят = plan.pairs.some(pp => [pp.a, pp.b].includes(i) || [pp.a, pp.b].includes(j));
+        if (занят || !canPair(plan.items[i], plan.items[j])) continue;
+        plan.pairs.push({ a: i, b: j, rest: day.pairRest ?? 25, order: interleave(plan.items[i].sets.length, plan.items[j].sets.length) });
+        plan.trims.push(`${plan.items[j].name.toLowerCase()} идёт между подходами — так задумано в программе`);
         break;
       }
     }
-    if (!changed) break;
   }
 
-  // Пол отдыха должен работать и внутри пар, иначе пара его молча обходит.
-  // Исключение — лестницы: короткий отдых между ступенями это их суть
-  // (в традиции ступени разделяет ровно то время, пока работает напарник),
-  // а полноценный отдых нужен между лестницами целиком.
-  for (const p of plan.pairs) {
-    let guard2 = 0;
-    while (guard2++ < 20) {
-      const real = pairRealRest(plan, p);
-      const need = [[plan.items[p.a], real.a], [plan.items[p.b], real.b]]
-        .some(([it, got]) => it.kind !== 'ladder' && got < (REST_FLOOR[it.kind] ?? 45));
-      if (!need) break;
-      // добавить отдых нельзя без места во времени — тогда снимаем круг
-      if (!dropRound(plan.items[p.a]) && !dropRound(plan.items[p.b])) break;
-      p.order = interleave(plan.items[p.a].sets.length, plan.items[p.b].sets.length);
-    }
-  }
-
-  // Урезание отдыха объём не трогает, а вот снятые круги — трогают.
-  // Помечаем только их: такая тренировка не подтверждает ступень.
-  for (const it of plan.items) it.cutForTime = it.sets.length < (it.fullSets ?? it.sets.length);
-
-  // Пересобираем подписи и чередование после всех урезаний,
-  // иначе на экране останутся числа из исходного плана
   for (const it of plan.items) refreshScheme(it);
-  for (const p of plan.pairs) p.order = interleave(plan.items[p.a].sets.length, plan.items[p.b].sets.length);
+  for (const pp of plan.pairs) pp.order = interleave(plan.items[pp.a].sets.length, plan.items[pp.b].sets.length);
 
   plan.estimate = estimateMinutes(plan);
-  plan.overBudget = plan.estimate > budgetMin;
   return plan;
 }
 
@@ -624,7 +510,7 @@ export function planFor(state, dateISO = todayISO(), readiness = null, dayOverri
     isRest: day.focus === 'rest'
   };
 
-  return plan.isRest ? plan : fitToBudget(plan, state.settings.timeBudget);
+  return plan.isRest ? plan : finalizePlan(plan, day);
 }
 
 // Описание конкретной ступени словами
@@ -731,20 +617,6 @@ export function applySession(state, session) {
       writeStep(track.reset ?? 0);
       return 'weight';
     };
-
-    // ── Тренировку урезал бюджет времени ──
-    // Человек сделал всё, что ему дали, но дали меньше ступени. Засчитывать
-    // это за пройденную ступень нельзя: иначе номер ступени растёт, а работы
-    // столько же, и через месяц «ступень 5 из 9» означает ту же первую неделю.
-    // Провалы при этом считаем: если и урезанное далось тяжело — это факт.
-    if (entry.cutForTime && (entry.complete && rpe <= 8)) {
-      p.wins = 0;
-      changes.push({
-        exId: entry.exId, type: 'hold',
-        text: `${ex.short}: срезали под бюджет времени — ступень не засчитываю. Добавь минут в настройках, иначе прогресс встанет`
-      });
-      continue;
-    }
 
     // ── Нагрузка была явно мимо: правим сразу, не копя подтверждения ──
     const jump = deload ? null : stepJump(rpe, entry.complete);

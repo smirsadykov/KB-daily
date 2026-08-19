@@ -9,7 +9,7 @@ const iso = (d) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOSt
 function run({ programId, days = 28, rpe = 7, pairs = [24], budget = 0 }) {
   const t0 = new Date('2026-09-01T00:00:00');
   const state = {
-    settings: { programId, startDate: iso(t0), bells: [16, 24, 32], pairs, timeBudget: budget,
+    settings: { programId, startDate: iso(t0), bells: [16, 24, 32], pairs,
                 warmup: true, cooldown: true, tgu: false, deloadEvery: 6 },
     progress: Object.fromEntries(Object.keys(EXERCISES).filter(k => EXERCISES[k].kind !== 'mobility')
       .map(k => [k, { weight: 24, step: 0, steps: {}, wins: 0, fails: 0 }])),

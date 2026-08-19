@@ -26,7 +26,7 @@ function прогон(pid, профиль, seed = 7) {
   // окно целиком в прошлом, чтобы работал настоящий resolveCycle
   const t0 = new Date(Date.now() - (ДНЕЙ + 2) * D);
   const st = {
-    settings: { programId: pid, startDate: iso(t0), bells: [16, 24, 32], pairs: [24], timeBudget: 30,
+    settings: { programId: pid, startDate: iso(t0), bells: [16, 24, 32], pairs: [24],
                 cyclePos: 0, cycleDate: iso(t0), warmup: true, cooldown: true, tgu: pid === 's_and_s',
                 deloadEvery: 6 },
     progress: Object.fromEntries(Object.keys(EXERCISES).filter(k => EXERCISES[k].kind !== 'mobility')
@@ -98,7 +98,10 @@ function прогон(pid, профиль, seed = 7) {
     const мин = estimateMinutes(plan);
     if (мин < 3) баг(pid, 'длительность', `${профиль}, день ${d}: ${мин} мин — подозрительно мало`);
     if (мин > 90) баг(pid, 'длительность', `${профиль}, день ${d}: ${мин} мин — подозрительно много`);
-    if (мин > st.settings.timeBudget * 1.6) баг(pid, 'бюджет', `${профиль}, день ${d}: ${мин} мин при бюджете ${st.settings.timeBudget}`);
+    // время задаёт программа: план обязан укладываться в объявленное ею окно
+    const окно = (PROGRAMS[pid].tag.match(/(\d+)(?:\s*→\s*(\d+))?\s*мин/) || []).slice(1).filter(Boolean).map(Number);
+    const верх = окно[окно.length - 1];
+    if (верх && мин > верх) баг(pid, 'дольше обещанного', `${профиль}, день ${d}: ${мин} мин, а программа обещает не больше ${верх}`);
 
     if (rnd() < п.пропуск) { журнал.push({ d, тип: 'пропуск', pos, dayId: деньПрограммы.id }); continue; }
 

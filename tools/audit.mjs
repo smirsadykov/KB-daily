@@ -6,7 +6,7 @@ const ok = (cond, msg) => { checks++; if (!cond) { fails++; console.log('  ✗ '
 const today = new Date().toISOString().slice(0, 10);
 
 const mkState = (over = {}) => ({
-  settings: { programId: 'daily_min', startDate: today, bells: [16,24,32], timeBudget: 25,
+  settings: { programId: 'daily_min', startDate: today, bells: [16,24,32],
               warmup: true, cooldown: true, tgu: false, ...(over.settings || {}) },
   progress: Object.fromEntries(Object.keys(EXERCISES).filter(k => EXERCISES[k].kind !== 'mobility')
             .map(k => [k, { weight: 16, step: over.step ?? 0, wins: 0, fails: 0 }])),
@@ -38,7 +38,7 @@ for (const [pid, prog] of Object.entries(PROGRAMS)) {
   for (let d = 0; d < prog.days.length; d++) {
     for (const budget of [15, 20, 25, 30]) {
       for (const step of [0, 5, 11]) {
-        const st = mkState({ settings: { programId: pid, timeBudget: budget }, step });
+        const st = mkState({ settings: { programId: pid }, step });
         const p = planFor(st, today, null, d);
         if (p.isRest) continue;
         for (const pr of p.pairs) {
@@ -58,19 +58,22 @@ for (const [pid, prog] of Object.entries(PROGRAMS)) {
 }
 console.log(`  пар проверено: ${pairChecks}, всего проверок ${checks}, провалов ${fails}`);
 
-console.log('\n=== 3. Бюджет времени соблюдается ===');
-for (const [pid] of Object.entries(PROGRAMS)) {
-  for (const budget of [15, 20, 25, 30, 45]) {
-    for (const step of [0, 5, 11]) {
-      const st = mkState({ settings: { programId: pid, timeBudget: budget }, step });
-      for (let d = 0; d < PROGRAMS[pid].days.length; d++) {
-        const p = planFor(st, today, null, d);
-        if (p.isRest) continue;
-        const est = estimateMinutes(p);
-        ok(est <= budget || p.overBudget,
-           `${pid}/д${d}/бюджет${budget}/шаг${step}: ${est} мин и флаг overBudget не выставлен`);
-        ok(p.estimate === est, `${pid}: plan.estimate=${p.estimate} расходится с пересчётом ${est}`);
-      }
+console.log('\n=== 3. Время задаёт программа, а не пользователь ===');
+// Никакого бюджета: план обязан в точности совпадать с предписанием ступени,
+// а объявленное программой время — накрывать то, что она реально выдаёт.
+for (const [pid, prog] of Object.entries(PROGRAMS)) {
+  const объявлено = (prog.tag.match(/(\d+)(?:\s*→\s*(\d+))?\s*мин/) || []).slice(1).filter(Boolean).map(Number);
+  ok(объявлено.length > 0, `${pid}: программа не объявляет своё время в tag`);
+  const верх = объявлено[объявлено.length - 1];
+  for (const step of [0, 5, 11]) {
+    const st = mkState({ settings: { programId: pid }, step });
+    for (let d = 0; d < PROGRAMS[pid].days.length; d++) {
+      const p = planFor(st, today, null, d);
+      if (p.isRest) continue;
+      const est = estimateMinutes(p);
+      ok(p.estimate === est, `${pid}: plan.estimate=${p.estimate} расходится с пересчётом ${est}`);
+      ok(!p.items.some(it => it.cutForTime), `${pid}/д${d}/шаг${step}: объём срезан, хотя резать больше нечем`);
+      if (верх) ok(est <= верх, `${pid}/д${d}/шаг${step}: ${est} мин, а программа обещает не больше ${верх}`);
     }
   }
 }
@@ -80,7 +83,7 @@ console.log('\n=== 4. Отдых не проваливается ниже пол
 const FLOOR = { ballistic: 30, ladder: 45, reps: 45, time: 30, swap: 60, interval: 120 };
 for (const [pid] of Object.entries(PROGRAMS)) {
   for (const budget of [15, 20, 25]) {
-    const st = mkState({ settings: { programId: pid, timeBudget: budget }, step: 8 });
+    const st = mkState({ settings: { programId: pid }, step: 8 });
     for (let d = 0; d < PROGRAMS[pid].days.length; d++) {
       const p = planFor(st, today, null, d);
       if (p.isRest) continue;
@@ -154,7 +157,7 @@ console.log(`  всего проверок ${checks}, провалов ${fails}`
 console.log('\n=== 7. Соответствие ярлыка и фактических подходов ===');
 for (const [pid] of Object.entries(PROGRAMS)) {
   for (const budget of [15, 25, 0]) {
-    const st = mkState({ settings: { programId: pid, timeBudget: budget }, step: 6 });
+    const st = mkState({ settings: { programId: pid }, step: 6 });
     for (let d = 0; d < PROGRAMS[pid].days.length; d++) {
       const p = planFor(st, today, null, d);
       if (p.isRest) continue;
@@ -183,7 +186,7 @@ console.log('\n=== 8. Пол отдыха действует и внутри п�
   for (const [pid] of Object.entries(PROGRAMS)) {
     for (const budget of [15, 20, 25, 30]) {
       for (const step of [0, 5, 11]) {
-        const st = mkState({ settings: { programId: pid, timeBudget: budget }, step });
+        const st = mkState({ settings: { programId: pid }, step });
         for (let d = 0; d < PROGRAMS[pid].days.length; d++) {
           const p = planFor(st, today, null, d);
           if (p.isRest) continue;
@@ -211,7 +214,7 @@ console.log('\n=== 9. Подпись не теряет смысл после п�
     for (const budget of [0, 15, 25, 45]) {
       for (const step of [0, 5, 11]) {
         for (const pairs of [[], [16], [16, 24, 32]]) {
-          const st = mkState({ settings: { programId: pid, timeBudget: budget }, step });
+          const st = mkState({ settings: { programId: pid }, step });
           st.settings.pairs = pairs;
           for (let d = 0; d < PROGRAMS[pid].days.length; d++) {
             const p = planFor(st, today, null, d);
@@ -252,7 +255,7 @@ console.log('\n=== 10. Потолки не режут последние сту�
         const tr = TR[sl.track];
         if (!tr || tr.kind === 'swap' || tr.kind === 'interval') continue;
         const lastIdx = tr.steps.length - 1;
-        const st = mkState({ settings: { programId: pid, timeBudget: 0 }, step: lastIdx });
+        const st = mkState({ settings: { programId: pid }, step: lastIdx });
         st.settings.pairs = [16, 24, 32];
         const di = prog.days.indexOf(day);
         const p = planFor(st, today, null, di);
@@ -345,7 +348,7 @@ console.log('\n=== 12. Двугиревые движения при наличи
   const од = (p) => p.items.filter(i => ['goblet_squat', 'clean_press', 'row', 'swing_2h'].includes(i.exId));
 
   for (const [pairs, ждём] of [[[24], 'двугиревые'], [[16, 24, 32], 'двугиревые'], [[], 'одногиревые']]) {
-    const st = mkState({ settings: { programId: 'ab15', timeBudget: 0 } });
+    const st = mkState({ settings: { programId: 'ab15' } });
     st.settings.pairs = pairs;
     const p = planFor(st, today, null, 0);
     if (ждём === 'двугиревые') {
@@ -423,64 +426,40 @@ console.log('\n=== 13. Программа главнее календаря ==='
 }
 console.log(`  всего проверок ${checks}, провалов ${fails}`);
 
-// ═══ 14. Урезание под бюджет времени ═══════════════════════════════════════
-// Три бага, найденные месячным прогоном (tools/month.mjs). Все три —
-// про то, что приложение молча выдавало желаемое за действительное.
-console.log('\n=== 14. Бюджет времени не врёт про прогресс ===');
+// ═══ 14. Парная работа только по объявлению программы ═════════════════════
+// Раньше пары ставились, чтобы уложиться в бюджет. Бюджета нет: пара — это
+// часть протокола, и появляться она должна только там, где так задумано.
+console.log('\n=== 14. Пары — замысел программы, а не экономия времени ===');
 {
-  // (а) откат после сброса веса не должен возвращать более тяжёлую гирю
-  for (const [tid, track] of Object.entries(TRACKS)) {
-    if (!track.steps?.length) continue;
-    const st = mkState({ settings: { bells: [16, 24, 32], timeBudget: 30 } });
-    // прогоняем движок через настоящий сброс веса: два провала подряд на нулевой ступени
-    const exId = Object.keys(EXERCISES).find(k => EXERCISES[k].kind !== 'mobility');
-    const p = st.progress[exId]; p.weight = 24; p.steps = { [tid]: 0 }; p.fails = 1; p.wins = 0;
-    const ses = { id: 1, date: today, deload: false, durationMin: 20, sessionRpe: 9,
-      entries: [{ exId, trackId: tid, kind: track.kind, weight: 24, plannedSets: 5, doneSets: 2,
-                  doneReps: 20, doneSec: 0, complete: false, rpe: 9, perCycle: 3, cycleDays: 7 }] };
-    applySession(st, ses);
-    if (p.weight === 16) {
-      const шаг = track.steps[p.steps[tid] ?? 0];
-      ok(!шаг.swapIn && !шаг.heavy,
-         `${tid}: после сброса до 16 кг ступень не должна возвращать гирю 24 кг`);
-    }
-  }
-
-  // (б) план либо влезает в бюджет, либо остался без подсобки — молчаливого перебора быть не может
-  for (const pid of Object.keys(PROGRAMS)) {
-    for (const бюджет of [15, 20, 30, 45]) {
-      for (const ст of [0, 4, 8]) {
-        const st = mkState({ settings: { programId: pid, timeBudget: бюджет, bells: [16, 24, 32], pairs: [24] } });
-        for (const pr of Object.values(st.progress)) { pr.step = ст; pr.steps = new Proxy({}, { get: () => ст }); }
-        for (let d = 0; d < PROGRAMS[pid].days.length; d++) {
-          const plan = planFor(st, today, null, d);
-          if (plan.isRest) continue;
-          ok(!plan.overBudget || plan.items.length === 1,
-             `${pid} @${бюджет} мин, ступень ${ст + 1}: не влезает в бюджет, хотя подсобка ещё в плане`);
-          ok(plan.items.every(it => (it.fullSets ?? it.sets.length) >= it.sets.length),
-             `${pid} @${бюджет} мин: срезанных подходов больше, чем было запланировано`);
+  for (const [pid, prog] of Object.entries(PROGRAMS)) {
+    for (const step of [0, 4, 8, 12]) {
+      const st = mkState({ settings: { programId: pid, bells: [16, 24, 32], pairs: [24] }, step });
+      for (let d = 0; d < prog.days.length; d++) {
+        const p = planFor(st, today, null, d);
+        if (p.isRest) continue;
+        ok(!!prog.days[d].pair || p.pairs.length === 0,
+           `${pid}/д${d}/шаг${step}: пара появилась там, где программа её не объявляла`);
+        for (const it of p.items) {
+          ok(it.sets.length > 0, `${pid}/д${d}/шаг${step}: ${it.exId} остался без подходов`);
+          ok(it.fullSets === undefined || it.fullSets === it.sets.length,
+             `${pid}/д${d}/шаг${step}: ${it.exId} потерял подходы между сборкой и выдачей`);
         }
       }
     }
   }
-
-  // (в) урезанная под время тренировка не подтверждает ступень
-  for (const pid of Object.keys(PROGRAMS)) {
-    const st = mkState({ settings: { programId: pid, timeBudget: 15, bells: [16, 24, 32] } });
-    const plan = planFor(st, today, null, PROGRAMS[pid].days.findIndex(d => d.focus !== 'rest'));
-    if (plan.isRest) continue;
-    const срезан = plan.items.find(it => it.cutForTime);
-    if (!срезан) continue;
-    const пр = st.progress[срезан.exId]; пр.steps ||= {};
-    const было = { w: пр.weight, s: пр.steps[срезан.trackId] ?? 0 };
-    applySession(st, { id: 1, date: today, deload: false, durationMin: 15, sessionRpe: 7,
-      entries: [{ exId: срезан.exId, trackId: срезан.trackId, kind: срезан.kind, weight: срезан.weight,
-                  plannedSets: срезан.sets.length, doneSets: срезан.sets.length,
-                  doneReps: 50, doneSec: 0, complete: true, cutForTime: true, rpe: 7,
-                  perCycle: срезан.perCycle, cycleDays: срезан.cycleDays }] });
-    const стало = { w: пр.weight, s: пр.steps[срезан.trackId] ?? 0 };
-    ok(было.w === стало.w && было.s === стало.s,
-       `${pid}: тренировка, срезанная под бюджет, не должна двигать ступень (${было.s} → ${стало.s})`);
+  // откат после сброса веса не должен возвращать более тяжёлую гирю
+  for (const [tid, track] of Object.entries(TRACKS)) {
+    if (!track.steps?.length) continue;
+    const st = mkState({ settings: { bells: [16, 24, 32] } });
+    const exId = Object.keys(EXERCISES).find(k => EXERCISES[k].kind !== 'mobility');
+    const pr = st.progress[exId]; pr.weight = 24; pr.steps = { [tid]: 0 }; pr.fails = 1; pr.wins = 0;
+    applySession(st, { id: 1, date: today, deload: false, durationMin: 20, sessionRpe: 9,
+      entries: [{ exId, trackId: tid, kind: track.kind, weight: 24, plannedSets: 5, doneSets: 2,
+                  doneReps: 20, doneSec: 0, complete: false, rpe: 9, perCycle: 3, cycleDays: 7 }] });
+    if (pr.weight === 16) {
+      const шаг = track.steps[pr.steps[tid] ?? 0];
+      ok(!шаг.swapIn && !шаг.heavy, `${tid}: после сброса до 16 кг ступень не должна возвращать гирю 24 кг`);
+    }
   }
 }
 console.log(`  всего проверок ${checks}, провалов ${fails}`);

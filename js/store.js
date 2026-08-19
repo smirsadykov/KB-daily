@@ -1,5 +1,5 @@
 // Хранилище состояния. Всё живёт в localStorage, без сервера.
-import { EXERCISES, PROGRAMS } from './data.js?v=35';
+import { EXERCISES, PROGRAMS } from './data.js?v=36';
 
 const KEY = 'kbdaily.v1';
 
@@ -40,7 +40,6 @@ export function defaultState() {
       pairs: [],
       programId: 'daily_min',
       startDate: todayISO(),
-      timeBudget: 25,
       deloadEvery: 6,
       // положение в цикле программы и дата, на которую оно посчитано.
       // Двигается по факту тренировок, а не по календарю: пропущенная
@@ -103,6 +102,8 @@ function migrate(s) {
   if (merged.settings.cyclePos === undefined) merged.settings.cyclePos = 0;
   if (!merged.settings.cycleDate) merged.settings.cycleDate = merged.settings.startDate || todayISO();
   delete merged.settings.cycleShift;
+  // время тренировки задаёт программа, а не пользователь
+  delete merged.settings.timeBudget;
   return merged;
 }
 

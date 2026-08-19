@@ -8,7 +8,7 @@ const problems = [];
 const warn = (kind, msg) => problems.push({ kind, msg });
 
 const mkState = (pid, budget = 25, step = 0, pairs = [24]) => ({
-  settings: { programId: pid, startDate: today, bells: [16, 24, 32], pairs, timeBudget: budget,
+  settings: { programId: pid, startDate: today, bells: [16, 24, 32], pairs,
               warmup: true, cooldown: true, tgu: false, deloadEvery: 6 },
   progress: Object.fromEntries(Object.keys(EXERCISES).filter(k => EXERCISES[k].kind !== 'mobility')
     .map(k => [k, { weight: 24, step: 0, steps: {}, wins: 0, fails: 0 }])),
