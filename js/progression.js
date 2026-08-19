@@ -1,6 +1,6 @@
 // Движок прогрессии: что делать сегодня и что менять после тренировки.
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=32';
-import { nextBell, prevBell, todayISO } from './store.js?v=32';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=33';
+import { nextBell, prevBell, todayISO } from './store.js?v=33';
 
 const DAY = 86400000;
 
@@ -28,7 +28,20 @@ export function isDeload(state, dateISO = todayISO()) {
 
 export function dayIndex(state, dateISO = todayISO()) {
   const prog = PROGRAMS[state.settings.programId];
-  return daysSince(state.settings.startDate, dateISO) % prog.days.length;
+  const shift = state.settings.cycleShift || 0;
+  return (daysSince(state.settings.startDate, dateISO) + shift) % prog.days.length;
+}
+
+// Ближайший рабочий день программы после указанного — нужен, когда
+// тренируешься в день отдыха.
+export function nextWorkDay(state, dateISO = todayISO()) {
+  const prog = PROGRAMS[state.settings.programId];
+  const di = dayIndex(state, dateISO);
+  for (let k = 1; k <= prog.days.length; k++) {
+    const idx = (di + k) % prog.days.length;
+    if (prog.days[idx].focus !== 'rest') return idx;
+  }
+  return -1;
 }
 
 // ── Готовность ───────────────────────────────────────────────────────────────

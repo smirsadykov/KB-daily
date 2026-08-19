@@ -361,3 +361,37 @@ console.log('\n=== 12. Двугиревые движения при наличи
 }
 console.log(`  всего проверок ${checks}, провалов ${fails}`);
 console.log(`\nПРОВЕРЕНО: ${checks} проверок, ${fails} провалов`);
+
+console.log('\n=== 13. Тренировка в день отдыха не повторяется завтра ===');
+{
+  const { nextWorkDay, dayIndex } = await import('../js/progression.js');
+  const DAY2 = 86400000;
+  const isoOf = (d) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+
+  for (const pid of ['ab15', 'daily_min', 'qd', 'giant']) {
+    const prog = PROGRAMS[pid];
+    const st = mkState({ settings: { programId: pid } });
+    st.settings.cycleShift = 0;
+    const t0 = new Date(st.settings.startDate + 'T00:00:00');
+
+    // ищем первый день отдыха в цикле
+    let restDay = -1;
+    for (let d = 0; d < prog.days.length; d++) {
+      if (planFor(st, isoOf(new Date(t0.getTime() + d * DAY2)), null).isRest) { restDay = d; break; }
+    }
+    if (restDay < 0) continue;
+
+    const дата = isoOf(new Date(t0.getTime() + restDay * DAY2));
+    const alt = nextWorkDay(st, дата);
+    const сегодня = planFor(st, дата, null, alt);
+
+    // сдвигаем цикл, как делает приложение после сохранения
+    st.settings.cycleShift = 1;
+    const завтра = planFor(st, isoOf(new Date(t0.getTime() + (restDay + 1) * DAY2)), null);
+
+    ok(завтра.isRest || завтра.dayId !== сегодня.dayId,
+       `${pid}: после тренировки вне графика завтра снова «${завтра.dayName}» — повтор сегодняшнего`);
+  }
+}
+console.log(`  всего проверок ${checks}, провалов ${fails}`);
+console.log(`\nГОТОВО: ${checks} проверок, ${fails} провалов`);
