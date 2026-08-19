@@ -1,17 +1,17 @@
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=37';
-import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON } from './store.js?v=37';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=38';
+import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON } from './store.js?v=38';
 import {
   planFor, applySession, summarizeItem, readinessMult, readinessLabel,
   waveIndex, weekIndex, wave, isDeload, acwr, streak, sessionLoad, tonnage, nextStepText, stepText, dayIndex,
   estimateMinutes, pairRealRest, paceFactor, blockStatus, nextBlockSuggestions, commitCycle
-} from './progression.js?v=37';
-import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=37';
-import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=37';
+} from './progression.js?v=38';
+import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=38';
+import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=38';
 
 // byId должен видеть и свои записи пользователя, поэтому оборачиваем
 const byId = (id) => suppById(id, S);
-import { timer, fmt, unlockAudio } from './timer.js?v=37';
-import { barChart, gauge } from './charts.js?v=37';
+import { timer, fmt, unlockAudio } from './timer.js?v=38';
+import { barChart, gauge } from './charts.js?v=38';
 
 // ── Мелкие помощники ─────────────────────────────────────────────────────────
 const $ = (s, r = document) => r.querySelector(s);
@@ -64,10 +64,15 @@ function render() {
   // innerHTML стирает состояние <details>: раскрытые подсказки захлопывались
   // после каждой отметки подхода. Запоминаем открытые и возвращаем обратно.
   const openDetails = new Set($$('details[data-key]').filter(d => d.open).map(d => d.dataset.key));
+  const вернутьРаскрытые = () =>
+    $$('details[data-key]').forEach(d => { if (openDetails.has(d.dataset.key)) d.open = true; });
 
   if (!S.onboarded) {
     screen.innerHTML = viewOnboarding();
     setTop('Настроим под тебя', '');
+    // экран настройки выходит здесь, поэтому раскрытое возвращаем и тут:
+    // иначе выбор программы захлопывал уже открытое «что даёт и чего не даёт»
+    вернутьРаскрытые();
     lastViewKey = key;
     if (sameView) window.scrollTo({ top: keepY });
     return;
@@ -81,7 +86,7 @@ function render() {
   if (tab === 'settings') { screen.innerHTML = viewSettings(); }
   $$('.tab').forEach(b => b.classList.toggle('is-active', b.dataset.tab === tab));
 
-  $$('details[data-key]').forEach(d => { if (openDetails.has(d.dataset.key)) d.open = true; });
+  вернутьРаскрытые();
 
   lastViewKey = key;
   // при возврате позиции ограничиваем её новой высотой страницы:
