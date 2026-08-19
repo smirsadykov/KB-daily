@@ -1,17 +1,17 @@
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel } from './data.js?v=31';
-import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON } from './store.js?v=31';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=32';
+import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON } from './store.js?v=32';
 import {
   planFor, applySession, summarizeItem, readinessMult, readinessLabel,
   waveIndex, weekIndex, wave, isDeload, acwr, streak, sessionLoad, tonnage, nextStepText, stepText, dayIndex,
   estimateMinutes, pairRealRest, paceFactor, blockStatus, nextBlockSuggestions
-} from './progression.js?v=31';
-import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=31';
-import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=31';
+} from './progression.js?v=32';
+import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=32';
+import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=32';
 
 // byId должен видеть и свои записи пользователя, поэтому оборачиваем
 const byId = (id) => suppById(id, S);
-import { timer, fmt, unlockAudio } from './timer.js?v=31';
-import { barChart, gauge } from './charts.js?v=31';
+import { timer, fmt, unlockAudio } from './timer.js?v=32';
+import { barChart, gauge } from './charts.js?v=32';
 
 // ── Мелкие помощники ─────────────────────────────────────────────────────────
 const $ = (s, r = document) => r.querySelector(s);
@@ -227,24 +227,50 @@ function suppCard() {
 
 function viewRestDay(plan) {
   const alreadyLogged = S.sessions.some(s => s.date === todayISO());
+  const prog = PROGRAMS[S.settings.programId];
+
+  // Что будет следующей тренировкой — чтобы день отдыха не был пустым экраном
+  let след = null, черезДней = 0;
+  for (let k = 1; k <= prog.days.length; k++) {
+    const d = prog.days[(plan.dayIndex + k) % prog.days.length];
+    if (d.focus !== 'rest') { след = d; черезДней = k; break; }
+  }
+
+  // Мобильность берём из библиотеки приложения, а не из выдуманного списка:
+  // раньше здесь висели четыре строчки, одинаковые для всех программ,
+  // и в них упоминалось БЖЖ независимо от того, чем ты занимаешься.
+  const восстановление = (S.settings.cooldown ? COOLDOWN : WARMUP.slice(0, 3));
+
   return `
   <div class="card accent">
     <h2>Сегодня отдых</h2>
-    <p class="muted">${h(plan.note || 'Восстановление — часть плана, а не пропуск. Именно в эти дни закрепляется всё, что ты сделал.')}</p>
+    <p class="muted mb0">${h(plan.note || 'Восстановление — часть плана, а не пропуск. Именно в эти дни закрепляется всё, что ты сделал.')}</p>
   </div>
+
+  ${след ? `
+  <div class="card tight">
+    <div class="row between">
+      <div class="grow">
+        <div class="ex-name" style="font-size:15px">${h(след.name)}</div>
+        <div class="muted small">${черезДней === 1 ? 'завтра' : `через ${черезДней} ${plural(черезДней, 'день', 'дня', 'дней')}`} · ${h(prog.name)}</div>
+      </div>
+      <span class="pill">дальше</span>
+    </div>
+  </div>` : ''}
+
   <div class="card">
-    <h2>10 минут для себя</h2>
+    <h2>Если хочется подвигаться</h2>
     <ul class="cues">
-      <li>Прогулка 20–30 минут в спокойном темпе</li>
-      <li>Кошка-верблюд 8 раз, ягодичный мост 10 раз</li>
-      <li>Присед с раскачкой 5 раз, дыши в нижней точке</li>
-      <li>Если после БЖЖ болит хват — просто повиси на перекладине 2×20 сек</li>
+      <li>Спокойная прогулка 20–30 минут</li>
+      ${восстановление.map(w => `<li>${h(EXERCISES[w.ex].name)} — ${w.reps}${w.note ? ' ' + h(w.note) : ''}</li>`).join('')}
     </ul>
+    <p class="muted small mb0">Это не тренировка и не должно ей стать. Если после мобильности хочется взять гирю — значит вчера ты недоработал, а не сегодня недогулял.</p>
   </div>
+
   ${alreadyLogged
     ? '<div class="card center"><div class="big-check">✓</div><p class="muted mb0">День отмечен</p></div>'
     : '<button class="btn ghost" data-act="log-rest">Отметить день отдыха</button>'}
-  <button class="btn line mt" data-act="train-anyway">Всё равно хочу потренироваться</button>`;
+  ${след ? `<button class="btn line mt" data-act="train-anyway">Всё равно потренироваться — будет «${h(след.name)}»</button>` : ''}`;
 }
 
 const READINESS_Q = [
