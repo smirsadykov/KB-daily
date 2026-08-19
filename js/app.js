@@ -1,17 +1,17 @@
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=33';
-import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON } from './store.js?v=33';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=34';
+import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON } from './store.js?v=34';
 import {
   planFor, applySession, summarizeItem, readinessMult, readinessLabel,
   waveIndex, weekIndex, wave, isDeload, acwr, streak, sessionLoad, tonnage, nextStepText, stepText, dayIndex,
-  estimateMinutes, pairRealRest, paceFactor, blockStatus, nextBlockSuggestions, nextWorkDay
-} from './progression.js?v=33';
-import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=33';
-import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=33';
+  estimateMinutes, pairRealRest, paceFactor, blockStatus, nextBlockSuggestions, commitCycle
+} from './progression.js?v=34';
+import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=34';
+import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=34';
 
 // byId должен видеть и свои записи пользователя, поэтому оборачиваем
 const byId = (id) => suppById(id, S);
-import { timer, fmt, unlockAudio } from './timer.js?v=33';
-import { barChart, gauge } from './charts.js?v=33';
+import { timer, fmt, unlockAudio } from './timer.js?v=34';
+import { barChart, gauge } from './charts.js?v=34';
 
 // ── Мелкие помощники ─────────────────────────────────────────────────────────
 const $ = (s, r = document) => r.querySelector(s);
@@ -164,21 +164,6 @@ function viewToday() {
   // если тренировка уже начата — показываем её, даже если по циклу сегодня отдых
   if (S.today) return viewSession(S.today.plan);
 
-  // тренировка вне графика: спрашиваем готовность как в обычный день
-  if (S.offSchedule != null) {
-    const off = planFor(S, date, null, S.offSchedule);
-    return `
-    <div class="card" style="border-color:var(--warn)">
-      <div class="row between">
-        <div class="grow"><div class="ex-name">${h(off.dayName)} вне графика</div>
-        <div class="muted small">сегодня по циклу день отдыха</div></div>
-        <span class="pill warn">вне графика</span>
-      </div>
-      <p class="muted small mt mb0">Цикл сдвинется на день, чтобы завтра не выпала та же тренировка. Расписание поедет вперёд — это нормально.</p>
-      <button class="btn line sm mt" data-act="off-cancel" style="width:auto">Передумал, оставлю отдых</button>
-    </div>` + viewReadiness(off, w, S.offSchedule);
-  }
-
   const preview = planFor(S, date, null);
   const banner = !(S.tests || []).length ? `
     <div class="card tight tap" role="button" tabindex="0" data-act="test-open" style="border-color:var(--accent)">
@@ -285,7 +270,7 @@ function viewRestDay(plan) {
   ${alreadyLogged
     ? '<div class="card center"><div class="big-check">✓</div><p class="muted mb0">День отмечен</p></div>'
     : '<button class="btn ghost" data-act="log-rest">Отметить день отдыха</button>'}
-  ${след ? `<button class="btn line mt" data-act="train-anyway">Всё равно потренироваться — будет «${h(след.name)}»</button>` : ''}`;
+`;
 }
 
 const READINESS_Q = [
@@ -1227,7 +1212,7 @@ const actions = {
       // Новая программа должна начинаться со своего первого дня. Без этого
       // отсчёт продолжается от старого старта, и человек попадает в середину
       // чужого цикла — например, выбирает ABC, а получает день махов.
-      if (changed) s.settings.startDate = todayISO();
+      if (changed) { s.settings.startDate = todayISO(); s.settings.cyclePos = 0; s.settings.cycleDate = todayISO(); }
       s.today = null;
     });
     render();
@@ -1255,25 +1240,10 @@ const actions = {
     render();
   },
   begin() {
-    const off = S.offSchedule;
-    const plan = planFor(S, todayISO(), draftReadiness, off ?? undefined);
-    if (off != null) { plan.offSchedule = true; plan.dayName += ' · вне графика'; }
+    const plan = planFor(S, todayISO(), draftReadiness);
     update(s => {
       s.today = { date: todayISO(), readiness: { ...draftReadiness }, plan, startedAt: Date.now() };
-      s.offSchedule = null;
     });
-    render();
-  },
-  'train-anyway'() {
-    // Не бросаем сразу в тренировку: день назначен для восстановления,
-    // и спросить о самочувствии тут важнее, чем в обычный день.
-    const altIdx = nextWorkDay(S);
-    if (altIdx < 0) { toast('В программе нет рабочих дней'); return; }
-    update(s => { s.offSchedule = altIdx; });
-    render();
-  },
-  'off-cancel'() {
-    update(s => { s.offSchedule = null; });
     render();
   },
   'log-rest'() {
@@ -1364,7 +1334,7 @@ const actions = {
       <button class="btn ghost mt" data-act="close-sheet">Продолжить тренировку</button>`);
   },
   'abort-yes'() {
-    update(s => { s.today = null; s.offSchedule = null; });
+    update(s => { s.today = null; });
     closeSheet(); render();
   },
   finish() {
@@ -1421,17 +1391,16 @@ const actions = {
       entries
     };
     const changes = applySession(S, session);
-    const сдвинули = !!plan.offSchedule;
     update(s => {
       s.sessions.push(session);
       s.today = null;
-      // тренировка вне графика съедает день отдыха: двигаем цикл, иначе
-      // завтра выпадет ровно та же тренировка, что была сегодня
-      if (сдвинули) s.settings.cycleShift = (s.settings.cycleShift || 0) + 1;
+      // тренировка сделана — цикл двигается на следующий день программы
+      s.settings.cyclePos = (s.settings.cyclePos + 1) % PROGRAMS[s.settings.programId].days.length;
+      s.settings.cycleDate = todayISO();
     });
     closeSheet();
     render();
-    showResult(session, changes, сдвинули);
+    showResult(session, changes);
   },
   'open-session'(el) { sessionSheet(+el.dataset.id); },
   'del-ask'(el) {
@@ -1613,13 +1582,12 @@ function finishSheetHTML(items, mins) {
   <button class="btn ghost mt" data-act="close-sheet">Ещё не закончил</button>`;
 }
 
-function showResult(session, changes, сдвинули = false) {
+function showResult(session, changes) {
   const good = changes.filter(c => c.type === 'weight-up' || c.type === 'step-up');
   openSheet(`
     <div class="big-check">${good.length ? '🔥' : '✓'}</div>
     <h2 class="center">${good.length ? 'Есть прогресс' : 'Записал'}</h2>
     <p class="muted center small">${tonnage(session).toLocaleString('ru-RU')} кг поднято · ${session.durationMin} мин · нагрузка ${sessionLoad(session)}</p>
-    ${сдвинули ? '<div class="card tight mt"><div class="muted small mb0">Цикл сдвинут на день: завтра будет то, что стояло следующим, а не повтор сегодняшнего.</div></div>' : ''}
     <div class="card mt">
       ${changes.map(c => `<div class="row" style="padding:6px 0;gap:8px">
         <span>${c.type === 'weight-up' ? '⬆️' : c.type === 'step-up' ? '▲' : c.type === 'step-down' || c.type === 'weight-down' ? '▼' : '•'}</span>
@@ -1669,6 +1637,7 @@ timer.onUpdate = () => { updateRestbar(); if (tab === 'timer') updateTimerScreen
 // ── Старт ────────────────────────────────────────────────────────────────────
 timer.configure({ sound: S.settings.sound, vibrate: S.settings.vibrate, keepAwake: S.settings.wakeLock });
 ensureToday();
+update(s => { commitCycle(s); });   // подтягиваем положение в цикле к сегодняшнему дню
 render();
 window.__kbdBooted = true;
 

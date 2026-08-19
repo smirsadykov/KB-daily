@@ -362,35 +362,63 @@ console.log('\n=== 12. Двугиревые движения при наличи
 console.log(`  всего проверок ${checks}, провалов ${fails}`);
 console.log(`\nПРОВЕРЕНО: ${checks} проверок, ${fails} провалов`);
 
-console.log('\n=== 13. Тренировка в день отдыха не повторяется завтра ===');
+console.log('\n=== 13. Программа главнее календаря ===');
 {
-  const { nextWorkDay, dayIndex } = await import('../js/progression.js');
-  const DAY2 = 86400000;
+  const { resolveCycle } = await import('../js/progression.js');
+  const D = 86400000;
   const isoOf = (d) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  const назад = (n) => isoOf(new Date(Date.now() - n * D));
 
-  for (const pid of ['ab15', 'daily_min', 'qd', 'giant']) {
+  for (const pid of ['ab15', 'daily_min', 'qd', 'giant', 's_and_s']) {
     const prog = PROGRAMS[pid];
-    const st = mkState({ settings: { programId: pid } });
-    st.settings.cycleShift = 0;
-    const t0 = new Date(st.settings.startDate + 'T00:00:00');
 
-    // ищем первый день отдыха в цикле
-    let restDay = -1;
-    for (let d = 0; d < prog.days.length; d++) {
-      if (planFor(st, isoOf(new Date(t0.getTime() + d * DAY2)), null).isRest) { restDay = d; break; }
+    // ── правило 3: пропустил рабочий день — он ждёт, а не теряется
+    {
+      const st = mkState({ settings: { programId: pid } });
+      st.settings.cyclePos = 0;
+      st.settings.cycleDate = назад(3);
+      st.sessions = [];                       // за три дня не тренировался ни разу
+      const первыйРабочий = prog.days.findIndex(d => d.focus !== 'rest');
+      const ожид = первыйРабочий;             // указатель должен стоять на первом рабочем дне
+      // считаем, сколько дней отдыха пройдёт само
+      let pos = 0, прошло = 0;
+      while (prog.days[pos].focus === 'rest' && прошло < 3) { pos = (pos + 1) % prog.days.length; прошло++; }
+      ok(resolveCycle(st) === pos,
+         `${pid}: пропущенная тренировка должна ждать. Ждали позицию ${pos}, получили ${resolveCycle(st)}`);
     }
-    if (restDay < 0) continue;
 
-    const дата = isoOf(new Date(t0.getTime() + restDay * DAY2));
-    const alt = nextWorkDay(st, дата);
-    const сегодня = planFor(st, дата, null, alt);
+    // ── правило 1: день отдыха программы проходит сам
+    if (prog.days.some(d => d.focus === 'rest')) {
+      const restIdx = prog.days.findIndex(d => d.focus === 'rest');
+      const st = mkState({ settings: { programId: pid } });
+      st.settings.cyclePos = restIdx;
+      st.settings.cycleDate = назад(1);
+      st.sessions = [];
+      ok(resolveCycle(st) === (restIdx + 1) % prog.days.length,
+         `${pid}: день отдыха обязан пройти сам, без тренировки`);
+    }
 
-    // сдвигаем цикл, как делает приложение после сохранения
-    st.settings.cycleShift = 1;
-    const завтра = planFor(st, isoOf(new Date(t0.getTime() + (restDay + 1) * DAY2)), null);
+    // ── правило 2: нет дней отдыха в программе — нет и в приложении
+    {
+      const st = mkState({ settings: { programId: pid } });
+      const естьОтдых = prog.days.some(d => d.focus === 'rest');
+      const дни = [];
+      for (let i = 0; i < prog.days.length; i++) дни.push(planFor(st, today, null, i).isRest);
+      ok(дни.some(Boolean) === естьОтдых,
+         `${pid}: дни отдыха в приложении должны совпадать с программой`);
+    }
+  }
 
-    ok(завтра.isRest || завтра.dayId !== сегодня.dayId,
-       `${pid}: после тренировки вне графика завтра снова «${завтра.dayName}» — повтор сегодняшнего`);
+  // ── сквозной сценарий: пропуск не ломает последовательность
+  {
+    const st = mkState({ settings: { programId: 'ab15' } });
+    st.settings.cyclePos = 0; st.settings.cycleDate = назад(4);
+    // тренировался только в первый из четырёх дней
+    st.sessions = [{ date: назад(4), type: 'workout', entries: [] }];
+    const pos = resolveCycle(st);
+    const прогр = PROGRAMS.ab15.days;
+    // день 0 сделан → 1 (отдых) прошёл → 2 (B) НЕ сделан и ждёт
+    ok(pos === 2, `после пропусков указатель должен стоять на невыполненной тренировке, получили ${pos} (${прогр[pos].name})`);
   }
 }
 console.log(`  всего проверок ${checks}, провалов ${fails}`);

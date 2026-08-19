@@ -1,5 +1,5 @@
 // Хранилище состояния. Всё живёт в localStorage, без сервера.
-import { EXERCISES, PROGRAMS } from './data.js?v=33';
+import { EXERCISES, PROGRAMS } from './data.js?v=34';
 
 const KEY = 'kbdaily.v1';
 
@@ -42,9 +42,11 @@ export function defaultState() {
       startDate: todayISO(),
       timeBudget: 25,
       deloadEvery: 6,
-      // на сколько дней сдвинут цикл: растёт, когда тренируешься в день отдыха,
-      // иначе завтра выпадет та же самая тренировка
-      cycleShift: 0,
+      // положение в цикле программы и дата, на которую оно посчитано.
+      // Двигается по факту тренировок, а не по календарю: пропущенная
+      // тренировка не теряется, а ждёт следующего дня.
+      cyclePos: 0,
+      cycleDate: todayISO(),
       supps: [],          // какие добавки ты принимаешь
       customSupps: [],    // свои записи: то, чего нет в каталоге
       bodyWeight: null,   // нужен только чтобы посчитать дозу кофеина в мг/кг
@@ -97,6 +99,10 @@ function migrate(s) {
   merged.sessions = Array.isArray(s.sessions) ? s.sessions : [];
   merged.tests = Array.isArray(s.tests) ? s.tests : [];
   merged.suppLog = (s.suppLog && typeof s.suppLog === 'object') ? s.suppLog : {};
+  // Переход со старой схемы, где день считался от даты старта
+  if (merged.settings.cyclePos === undefined) merged.settings.cyclePos = 0;
+  if (!merged.settings.cycleDate) merged.settings.cycleDate = merged.settings.startDate || todayISO();
+  delete merged.settings.cycleShift;
   return merged;
 }
 

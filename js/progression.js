@@ -1,6 +1,6 @@
 // Движок прогрессии: что делать сегодня и что менять после тренировки.
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=33';
-import { nextBell, prevBell, todayISO } from './store.js?v=33';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=34';
+import { nextBell, prevBell, todayISO } from './store.js?v=34';
 
 const DAY = 86400000;
 
@@ -26,22 +26,59 @@ export function isDeload(state, dateISO = todayISO()) {
   return wave(state, dateISO).deload;
 }
 
-export function dayIndex(state, dateISO = todayISO()) {
+// ── Положение в цикле программы ──────────────────────────────────────────────
+// Программа главнее календаря. Из этого следует три вещи:
+//
+//   1. День отдыха, предусмотренный программой, обязан состояться —
+//      он «проходит» сам собой вместе с календарным днём.
+//   2. Если программа отдыха не предусматривает, его и не будет.
+//   3. Если тренировки не было в логе, указатель НЕ двигается: завтра
+//      выпадет ровно та тренировка, которая должна была быть сегодня.
+//
+// Раньше день считался от даты старта, и пропуск означал безвозвратно
+// потерянную тренировку: пропустил среду — в пятницу цикл уже уехал вперёд.
+
+const addDay = (isoStr, n = 1) => {
+  const d = new Date(isoStr + 'T00:00:00');
+  d.setDate(d.getDate() + n);
+  return todayISO(d);
+};
+
+export function resolveCycle(state, dateISO = todayISO()) {
   const prog = PROGRAMS[state.settings.programId];
-  const shift = state.settings.cycleShift || 0;
-  return (daysSince(state.settings.startDate, dateISO) + shift) % prog.days.length;
+  const len = prog.days.length;
+  let pos = (state.settings.cyclePos ?? 0) % len;
+  let cur = state.settings.cycleDate || state.settings.startDate || dateISO;
+  const сегодня = todayISO();
+
+  // Прошедшие дни: рабочий день ждёт, пока его не сделают; день отдыха проходит сам
+  let guard = 0;
+  while (cur < dateISO && cur < сегодня && guard++ < 3000) {
+    const day = prog.days[pos];
+    const тренировался = (state.sessions || []).some(s => s.date === cur && s.type !== 'rest');
+    if (day.focus === 'rest' || тренировался) pos = (pos + 1) % len;
+    cur = addDay(cur);
+  }
+
+  // Будущие дни показываем оптимистично: считаем, что всё сделано вовремя
+  if (dateISO > сегодня) {
+    let d = сегодня > cur ? сегодня : cur;
+    let g2 = 0;
+    while (d < dateISO && g2++ < 3000) { pos = (pos + 1) % len; d = addDay(d); }
+  }
+  return pos;
 }
 
-// Ближайший рабочий день программы после указанного — нужен, когда
-// тренируешься в день отдыха.
-export function nextWorkDay(state, dateISO = todayISO()) {
-  const prog = PROGRAMS[state.settings.programId];
-  const di = dayIndex(state, dateISO);
-  for (let k = 1; k <= prog.days.length; k++) {
-    const idx = (di + k) % prog.days.length;
-    if (prog.days[idx].focus !== 'rest') return idx;
-  }
-  return -1;
+export function dayIndex(state, dateISO = todayISO()) {
+  return resolveCycle(state, dateISO);
+}
+
+// Сохраняем разрешённое положение, чтобы пересчёт не начинался с нуля каждый раз
+export function commitCycle(state) {
+  const pos = resolveCycle(state, todayISO());
+  state.settings.cyclePos = pos;
+  state.settings.cycleDate = todayISO();
+  return pos;
 }
 
 // ── Готовность ───────────────────────────────────────────────────────────────
