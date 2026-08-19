@@ -1,17 +1,17 @@
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=36';
-import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON } from './store.js?v=36';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=37';
+import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON } from './store.js?v=37';
 import {
   planFor, applySession, summarizeItem, readinessMult, readinessLabel,
   waveIndex, weekIndex, wave, isDeload, acwr, streak, sessionLoad, tonnage, nextStepText, stepText, dayIndex,
   estimateMinutes, pairRealRest, paceFactor, blockStatus, nextBlockSuggestions, commitCycle
-} from './progression.js?v=36';
-import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=36';
-import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=36';
+} from './progression.js?v=37';
+import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=37';
+import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=37';
 
 // byId должен видеть и свои записи пользователя, поэтому оборачиваем
 const byId = (id) => suppById(id, S);
-import { timer, fmt, unlockAudio } from './timer.js?v=36';
-import { barChart, gauge } from './charts.js?v=36';
+import { timer, fmt, unlockAudio } from './timer.js?v=37';
+import { barChart, gauge } from './charts.js?v=37';
 
 // ── Мелкие помощники ─────────────────────────────────────────────────────────
 const $ = (s, r = document) => r.querySelector(s);
@@ -1597,6 +1597,10 @@ document.addEventListener('click', (e) => {
   if (FORM_TAGS.includes(e.target.tagName)) { unlockAudio(); return; }
   const closeEl = e.target.closest('[data-close]');
   if (closeEl) { closeSheet(); return; }
+  // Раскрывашка внутри карточки-кнопки: <details> открывается действием
+  // браузера по умолчанию, а мы его тут же отменяли preventDefault. Из-за
+  // этого «что даёт программа» не разворачивалось вовсе, а не схлопывалось.
+  if (e.target.closest('summary')) { unlockAudio(); return; }
   const el = e.target.closest('[data-act]');
   if (el) {
     unlockAudio();
@@ -1610,6 +1614,9 @@ document.addEventListener('click', (e) => {
 
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Enter' && e.key !== ' ') return;
+  // с клавиатуры та же история: Enter на заголовке раскрывашки должен
+  // разворачивать её, а не выбирать программу
+  if (e.target.closest?.('summary')) return;
   const el = e.target.closest?.('[role="button"][data-act]');
   if (el && actions[el.dataset.act]) { e.preventDefault(); actions[el.dataset.act](el); }
 });
