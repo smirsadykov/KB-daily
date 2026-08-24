@@ -538,6 +538,26 @@ console.log('\n=== 15. Волна не раздувает чужой прото�
     }
   }
 
+  // (б2) A/B: числа Джорджа Томаса — ровно три круга в A и шесть в B, всегда.
+  //      Ни ступень лестницы, ни волна, ни самочувствие их не двигают.
+  //      Убавить может только разгрузочная неделя и плохое самочувствие.
+  for (const r of [null, { sleep: 5, soreness: 5, energy: 5 }]) {
+    for (const step of [0, 2, 4, 6, 8, 9]) {
+      const st = mkState({ settings: { programId: 'ab15', bells: [16, 24, 32], pairs: [16, 24] }, step });
+      for (let d = 0; d < PROGRAMS.ab15.days.length; d++) {
+        const p = planFor(st, today, r, d);
+        if (p.isRest) continue;
+        if (p.dayId === 'A') {
+          p.items.forEach(it => ok(it.sets.length === 3,
+            `ab15/день A/шаг${step}: ${it.exId} даёт ${it.sets.length} кругов вместо трёх`));
+        } else {
+          p.items.forEach(it => ok(it.sets.length === 12,
+            `ab15/день B/шаг${step}: ${it.sets.length} подходов вместо двенадцати (шесть кругов)`));
+        }
+      }
+    }
+  }
+
   // (в) постепенная замена гири в минутном режиме делит тяжёлые круги поровну
   for (const [pid, prog] of Object.entries(PROGRAMS)) {
     for (const step of [0, 4, 8, 10, 11]) {
