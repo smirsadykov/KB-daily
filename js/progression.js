@@ -1,6 +1,6 @@
 // Движок прогрессии: что делать сегодня и что менять после тренировки.
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=40';
-import { nextBell, prevBell, todayISO } from './store.js?v=40';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=41';
+import { nextBell, prevBell, todayISO } from './store.js?v=41';
 
 const DAY = 86400000;
 
@@ -388,9 +388,15 @@ function refreshScheme(item) {
   else if (item.kind === 'time') item.scheme = first.sec >= 120
     ? `${item.sets.length / sides} × ${Math.round(first.sec / 60)} мин${perSide}`
     : `${item.sets.length / sides} × ${first.sec} сек${perSide}`;
-  else if (item.kind === 'emom') item.scheme = item.alt
-    ? `${item.sets.length} подходов · движения чередуются`
-    : `${item.sets.length} кругов` + (item.doubled ? ' · двумя гирями' : ' · на каждую сторону');
+  else if (item.kind === 'emom') {
+    // Заход новой гири подписываем так же, как в дне A программы A/B.
+    // У чередующихся движений считаем КРУГАМИ: минута махов плюс минута трастеров.
+    const кругов = item.alt ? Math.round((item.heavy || 0) / 2) : (item.heavy || 0);
+    const заход = кругов ? `, из них ${кругов} ${кругов === 1 ? 'круг' : кругов < 5 ? 'круга' : 'кругов'} новым весом` : '';
+    item.scheme = item.alt
+      ? `${item.sets.length} подходов · движения чередуются${заход}`
+      : `${item.sets.length} кругов` + (item.doubled ? ' · двумя гирями' : ' · на каждую сторону') + заход;
+  }
   else if (item.kind === 'swap') {
     const base = `${item.sets.length} × ${first.reps}`;
     // на ступени норматива важен режим времени, а не сколько подходов целевым весом
