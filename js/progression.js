@@ -1,6 +1,6 @@
 // Движок прогрессии: что делать сегодня и что менять после тренировки.
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=38';
-import { nextBell, prevBell, todayISO } from './store.js?v=38';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=39';
+import { nextBell, prevBell, todayISO } from './store.js?v=39';
 
 const DAY = 86400000;
 
@@ -183,13 +183,17 @@ function expandSets(exId, ex, step, kind, weight, mult, bells = [], track = {}, 
     // потолок должен быть выше конца лестницы, иначе последние ступени
     // молча срезаются и до цели программы не дойти
     let n = clamp(Math.round(step.sets * mult), 2, 40);
+    // Подпись подхода берём из трека или из ступени: у ABC это состав круга,
+    // у Q&D и A/B — название движения, потому что там два движения чередуются.
+    const alt = step.alt || track.alt;
     // Если этот вес есть парой — делаем как в оригинале, двумя гирями сразу,
     // и круг не делится на стороны. Иначе круг идёт на каждую сторону,
     // и тогда число кругов должно быть чётным, чтобы руки получили поровну.
-    if (!doubles && !track.alt && ex.side === 'each' && n % 2 !== 0) n += 1;
-    // Подпись подхода берём из трека: у ABC это состав круга, у Q&D —
-    // название движения, потому что там два движения чередуются.
-    const alt = step.alt || track.alt;
+    if (!doubles && !alt && ex.side === 'each' && n % 2 !== 0) n += 1;
+    // Движения чередуются по кругу, значит число минут обязано делиться на их
+    // количество. Иначе первому движению достаётся лишний круг: 13 минут — это
+    // 7 подходов махов и только 6 трастеров. Срезаем до целого числа кругов.
+    if (alt && alt.length > 1 && n % alt.length !== 0) n = Math.max(alt.length, n - (n % alt.length));
     for (let i = 0; i < n; i++) {
       push({ reps: 1, side: doubles || alt ? null : sideFor(i), complex: true,
              doubled: doubles, alt: !!alt,

@@ -447,6 +447,30 @@ console.log('\n=== 14. Пары — замысел программы, а не �
       }
     }
   }
+  // чередующиеся движения должны получать поровну кругов
+  // (13 минут махов и трастеров — это 7 подходов махов и только 6 трастеров)
+  const САМОЧУВСТВИЕ = [null, { sleep: 5, soreness: 5, energy: 5 }, { sleep: 3, soreness: 3, energy: 3 },
+                        { sleep: 2, soreness: 2, energy: 2 }, { sleep: 1, soreness: 1, energy: 1 }];
+  for (const [pid, prog] of Object.entries(PROGRAMS)) {
+    for (const step of [0, 2, 4, 6, 8]) {
+      for (const r of САМОЧУВСТВИЕ) {
+        const st = mkState({ settings: { programId: pid, bells: [16, 24, 32], pairs: [16, 24] }, step });
+        for (let d = 0; d < prog.days.length; d++) {
+          const p = planFor(st, today, r, d);
+          if (p.isRest) continue;
+          for (const it of p.items) {
+            if (!it.sets.some(x => x.alt)) continue;
+            const счёт = {};
+            it.sets.forEach(x => { счёт[x.complexReps] = (счёт[x.complexReps] || 0) + 1; });
+            const кол = Object.values(счёт);
+            ok(new Set(кол).size === 1,
+               `${pid}/д${d}/шаг${step}: чередующиеся движения получили разное число кругов — ${JSON.stringify(счёт)}`);
+          }
+        }
+      }
+    }
+  }
+
   // откат после сброса веса не должен возвращать более тяжёлую гирю
   for (const [tid, track] of Object.entries(TRACKS)) {
     if (!track.steps?.length) continue;
