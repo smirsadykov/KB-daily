@@ -488,4 +488,75 @@ console.log('\n=== 14. Пары — замысел программы, а не �
 }
 console.log(`  всего проверок ${checks}, провалов ${fails}`);
 
+
+// ═══ 15. Объём: потолок протокола и потолок программы ═════════════════════
+console.log('\n=== 15. Волна не раздувает чужой протокол, минимум остаётся минимумом ===');
+{
+  const ПИК = { sleep: 5, soreness: 5, energy: 5 };
+  // (а) там, где объём задан источником, пиковая неделя и отличное самочувствие
+  //     не должны давать больше подходов, чем предписала ступень
+  for (const [pid, prog] of Object.entries(PROGRAMS)) {
+    if (!prog.fixedVolume) continue;
+    for (const step of [0, 3, 6, 9]) {
+      const базовое = mkState({ settings: { programId: pid, bells: [16, 24, 32], pairs: [16, 24] }, step });
+      for (let d = 0; d < prog.days.length; d++) {
+        const тихо = planFor(базовое, today, null, d);
+        const пик = planFor(базовое, today, ПИК, d);
+        if (тихо.isRest) continue;
+        тихо.items.forEach((it, i) => {
+          ok(пик.items[i].sets.length <= it.sets.length,
+             `${pid}/д${d}/шаг${step}: ${it.exId} на пике ${пик.items[i].sets.length} подходов против ${it.sets.length} — протокол раздут`);
+        });
+      }
+    }
+  }
+
+  // (б) потолок ступени, заданный программой, соблюдается в плане
+  //     и не превращается в тупик: упёршись, движок берёт гирю тяжелее
+  for (const [pid, prog] of Object.entries(PROGRAMS)) {
+    for (const day of prog.days) {
+      for (const sl of day.slots || []) {
+        if (sl.maxStep === undefined) continue;
+        const st = mkState({ settings: { programId: pid, bells: [16, 24, 32] }, step: 20 });
+        const d = prog.days.indexOf(day);
+        const p = planFor(st, today, null, d);
+        const it = p.items.find(x => x.trackId === sl.track);
+        ok(!!it, `${pid}: слот ${sl.ex} с потолком не попал в план`);
+        if (!it) continue;
+        ok(it.step <= sl.maxStep, `${pid}: ${sl.ex} ступень ${it.step} выше потолка ${sl.maxStep}`);
+        // упёрлись в потолок и всё делаем легко — должна смениться гиря
+        const pr = st.progress[it.exId];
+        const весДо = pr.weight;
+        pr.steps = { [sl.track]: sl.maxStep }; pr.wins = 9;
+        applySession(st, { id: 1, date: today, deload: false, durationMin: 20, sessionRpe: 6,
+          entries: [{ exId: it.exId, trackId: sl.track, kind: it.kind, weight: it.weight, maxStep: sl.maxStep,
+                      plannedSets: it.sets.length, doneSets: it.sets.length, doneReps: 50, doneSec: 0,
+                      complete: true, rpe: 6, perCycle: it.perCycle, cycleDays: it.cycleDays }] });
+        const дошёлДоПотолка = весДо !== pr.weight || (pr.steps[sl.track] ?? 0) <= sl.maxStep;
+        ok(дошёлДоПотолка, `${pid}: ${sl.ex} на потолке ${sl.maxStep} ушёл на ступень ${pr.steps[sl.track]} вместо смены гири`);
+      }
+    }
+  }
+
+  // (в) постепенная замена гири в минутном режиме делит тяжёлые круги поровну
+  for (const [pid, prog] of Object.entries(PROGRAMS)) {
+    for (const step of [0, 4, 8, 10, 11]) {
+      const st = mkState({ settings: { programId: pid, bells: [16, 24, 32], pairs: [16, 24] }, step });
+      for (let d = 0; d < prog.days.length; d++) {
+        const p = planFor(st, today, null, d);
+        if (p.isRest) continue;
+        for (const it of p.items) {
+          const тяж = it.sets.filter(x => x.weight > it.weight);
+          if (!тяж.length || !it.sets.some(x => x.alt)) continue;
+          const счёт = {};
+          тяж.forEach(x => { счёт[x.complexReps] = (счёт[x.complexReps] || 0) + 1; });
+          ok(new Set(Object.values(счёт)).size === 1,
+             `${pid}/д${d}/шаг${step}: тяжёлую гирю получили не поровну — ${JSON.stringify(счёт)}`);
+        }
+      }
+    }
+  }
+}
+console.log(`  всего проверок ${checks}, провалов ${fails}`);
+
 console.log(`\nГОТОВО: ${checks} проверок, ${fails} провалов`);

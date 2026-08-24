@@ -1,6 +1,6 @@
 // Движок прогрессии: что делать сегодня и что менять после тренировки.
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=39';
-import { nextBell, prevBell, todayISO } from './store.js?v=39';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=40';
+import { nextBell, prevBell, todayISO } from './store.js?v=40';
 
 const DAY = 86400000;
 
@@ -194,12 +194,19 @@ function expandSets(exId, ex, step, kind, weight, mult, bells = [], track = {}, 
     // количество. Иначе первому движению достаётся лишний круг: 13 минут — это
     // 7 подходов махов и только 6 трастеров. Срезаем до целого числа кругов.
     if (alt && alt.length > 1 && n % alt.length !== 0) n = Math.max(alt.length, n - (n % alt.length));
+    // swapIn: столько КРУГОВ уже делается следующей гирей — так же, как в дне A
+    // программы A/B, где новая пара заходит по одному кругу за раз. У чередующихся
+    // движений круг это alt.length минут: иначе тяжёлую гирю получили бы махи,
+    // а трастеры так и остались бы на лёгкой.
+    const минутВКруге = alt && alt.length > 1 ? alt.length : 1;
+    const heavier = step.swapIn ? (nextBell(weight, bells) ?? weight) : null;
+    const heavyN = step.swapIn ? Math.min(step.swapIn * минутВКруге, n) : 0;
     for (let i = 0; i < n; i++) {
       push({ reps: 1, side: doubles || alt ? null : sideFor(i), complex: true,
-             doubled: doubles, alt: !!alt,
+             doubled: doubles, alt: !!alt, weight: i < heavyN ? heavier : weight,
              complexReps: alt ? alt[i % alt.length] : '2 заброса · 1 жим · 3 приседа' });
     }
-    return { sets, rest: 0, emom: step.emom, doubled: doubles, alt: !!alt };
+    return { sets, rest: 0, emom: step.emom, doubled: doubles, alt: !!alt, heavy: heavyN };
   }
   return { sets, rest: 60, emom: null };
 }
@@ -237,21 +244,19 @@ function schemeText(kind, step, item) {
   return '';
 }
 
-// ── Бюджет времени ───────────────────────────────────────────────────────────
+// ── Оценка длительности ──────────────────────────────────────────────────────
 // Реальная тренировка почти целиком состоит из отдыха: чистой работы в 38-минутной
-// сессии минут девять. Поэтому укладываемся в бюджет по порядку уступок,
-// от самых дешёвых к самым дорогим:
-//   1. пары (пока отдыхает одно движение, работает другое) — не стоит ничего
-//   2. сокращение отдыха до разумного минимума
-//   3. урезание подсобки
-//   4. и только в последнюю очередь — объём основного движения
+// сессии минут девять. Оценка нужна, чтобы честно показать человеку, во что
+// обойдётся день, и чтобы программа могла объявить своё время в карточке.
+// Подгонки под заданное пользователем время здесь больше нет: сколько занимает
+// тренировка — решает программа.
 
 // Время работы в подходе. Числа выверены по известным ориентирам, а не на глаз:
 //   10 махов одной рукой  ≈ 20 сек  (S&S: 10×10 с отдыхом 60 сек укладывается в ~13 мин)
 //   ступень лестницы 1-2-3 ≈ 6-12 сек (заброс 2,5 + жимы по 2,5 + постановка)
 //   гоблет-присед с паузой ≈ 3 сек на повтор
-// Завышать здесь опаснее, чем занижать: из-за этого бюджет времени срезает объём,
-// который на самом деле влезал бы.
+// Завышать здесь опаснее, чем занижать: программа объявляет своё время по этим
+// числам, и завышенная оценка отпугнёт от программы, которая на деле короче.
 const SET_WORK = (item, s) => {
   if (item.kind === 'ballistic') return (s.reps || 0) * 1.5 + 5;
   if (item.kind === 'ladder') return (s.reps || 0) * 2.5 + 4;   // заброс, жимы, постановка
@@ -432,7 +437,16 @@ export function planFor(state, dateISO = todayISO(), readiness = null, dayOverri
   const wi = w.index;
   const rMult = readinessMult(readiness);
   const dayMult = day.mult ?? 1;
-  const mult = clamp(w.mult * rMult * dayMult, 0.4, 1.25);
+  // fixedVolume: у программ, где объём задан источником (A/B — три круга и
+  // шесть, Q&D, VWC, «10 000 махов», Easy Strength), предписанное количество
+  // это потолок. Волна и самочувствие могут только убавить: раздувать чужой
+  // протокол на 20% значит выдавать за него что-то другое.
+  // Ограничиваем каждый множитель по отдельности, а не их произведение: иначе
+  // в день, который программа сама объявила лёгким (у VWC это 0,7), хорошее
+  // самочувствие всё равно добавляло объём сверх задуманного.
+  const mult = prog.fixedVolume
+    ? clamp(Math.min(w.mult, 1) * Math.min(rMult, 1) * dayMult, 0.4, 1)
+    : clamp(w.mult * rMult * dayMult, 0.4, 1.25);
 
   // Как часто движение встречается в цикле — нужно, чтобы подтверждения
   // считались во времени, а не в тренировках. Движение раз в неделю
@@ -471,12 +485,23 @@ export function planFor(state, dateISO = todayISO(), readiness = null, dayOverri
     const track = TRACKS[slot.track];
     const p = state.progress[exId] || { weight: state.settings.bells[0], step: 0 };
     const weight = pairWeight ?? p.weight;
-    const stepIdx = clamp(p.steps?.[slot.track] ?? p.step ?? 0, 0, track.steps.length - 1);
+    // maxStep: докуда эта программа ведёт движение по лестнице. Нужен там, где
+    // лестница общая с другой программой: пять лестниц 1-2-3-4-5 — это «Путь бойца»
+    // Павла, а для ежедневной практики такой объём превращает её в полуторачасовую
+    // тренировку. Дойдя до потолка, движок переходит на гирю тяжелее и сбрасывает
+    // объём — это и есть заявленный порядок «объём → плотность → вес».
+    const потолок = Math.min(track.steps.length - 1, slot.maxStep ?? Infinity);
+    const stepIdx = clamp(p.steps?.[slot.track] ?? p.step ?? 0, 0, потолок);
     const step = track.steps[stepIdx];
     const hasPair = pairs.includes(weight);
-    const item = expandSets(exId, ex, step, track.kind, weight, mult, state.settings.bells, track, hasPair);
+    // Для двугиревой работы лестницей весов служит список пар: подставлять
+    // гирю, которой у человека всего одна, бессмысленно. Нет следующей пары —
+    // замена просто не произойдёт, и это честнее, чем обещать невозможное.
+    const лестницаВесов = hasPair ? pairs : state.settings.bells;
+    const item = expandSets(exId, ex, step, track.kind, weight, mult, лестницаВесов, track, hasPair);
     item.exId = exId;
     item.trackId = slot.track;
+    item.maxStep = slot.maxStep;
     item.perCycle = perCycle[slot.ex + '|' + slot.track] || 1;
     item.cycleDays = prog.days.length;
     item.kind = track.kind;
@@ -602,7 +627,7 @@ export function applySession(state, session) {
     const writeStep = (v) => { p.steps[entry.trackId] = v; p.step = v; };
     const ex = EXERCISES[entry.exId];
     const rpe = entry.rpe ?? 7;
-    const last = track.steps.length - 1;
+    const last = Math.min(track.steps.length - 1, entry.maxStep ?? Infinity);
 
     if (deload) {
       changes.push({ exId: entry.exId, type: 'hold', text: `${ex.short}: разгрузочная неделя, шаг не меняем` });
@@ -770,8 +795,8 @@ export function blockStatus(state, dateISO = todayISO()) {
     const tr = TRACKS[sl.track];
     const p = state.progress[sl.ex];
     if (!tr || !p) continue;
-    const step = clamp(p.steps?.[sl.track] ?? 0, 0, tr.steps.length - 1);
-    const last = tr.steps.length - 1;
+    const last = Math.min(tr.steps.length - 1, sl.maxStep ?? Infinity);
+    const step = clamp(p.steps?.[sl.track] ?? 0, 0, last);
     rows.push({
       exId: sl.ex, trackId: sl.track, step, last,
       pct: last ? step / last : 1,

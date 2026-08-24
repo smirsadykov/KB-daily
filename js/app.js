@@ -1,17 +1,17 @@
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=39';
-import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON } from './store.js?v=39';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=40';
+import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON } from './store.js?v=40';
 import {
   planFor, applySession, summarizeItem, readinessMult, readinessLabel,
   waveIndex, weekIndex, wave, isDeload, acwr, streak, sessionLoad, tonnage, nextStepText, stepText, dayIndex,
   estimateMinutes, pairRealRest, paceFactor, blockStatus, nextBlockSuggestions, commitCycle
-} from './progression.js?v=39';
-import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=39';
-import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=39';
+} from './progression.js?v=40';
+import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=40';
+import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=40';
 
 // byId должен видеть и свои записи пользователя, поэтому оборачиваем
 const byId = (id) => suppById(id, S);
-import { timer, fmt, unlockAudio } from './timer.js?v=39';
-import { barChart, gauge } from './charts.js?v=39';
+import { timer, fmt, unlockAudio } from './timer.js?v=40';
+import { barChart, gauge } from './charts.js?v=40';
 
 // ── Мелкие помощники ─────────────────────────────────────────────────────────
 const $ = (s, r = document) => r.querySelector(s);
@@ -1362,8 +1362,7 @@ const actions = {
         exId: it.exId, trackId: it.trackId, kind: it.kind, name: it.name, weight: it.weight,
         plannedSets: sum.totalSets, doneSets: sum.doneSets,
         plannedReps: sum.plannedReps, doneReps: sum.doneReps, doneSec: sum.doneSec,
-        complete: sum.complete, rpe: finishDraft.rpe[it.exId] ?? 7, step: it.step,
-        // урезал ли объём бюджет времени — от этого зависит, засчитывать ступень
+        complete: sum.complete, rpe: finishDraft.rpe[it.exId] ?? 7, step: it.step, maxStep: it.maxStep,
         perCycle: it.perCycle, cycleDays: it.cycleDays
       };
     }).filter(e => e.doneSets > 0);

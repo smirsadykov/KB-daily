@@ -112,7 +112,7 @@ function прогон(pid, профиль, seed = 7) {
       const sum = summarizeItem(it);
       return { exId: it.exId, trackId: it.trackId, kind: it.kind, weight: it.weight,
                plannedSets: sum.totalSets, doneSets: sum.doneSets, doneReps: sum.doneReps, doneSec: sum.doneSec,
-               complete: sum.complete, cutForTime: !!it.cutForTime, fullSets: it.fullSets,
+               complete: sum.complete, maxStep: it.maxStep,
                rpe: п.rpe(rnd()), perCycle: it.perCycle, cycleDays: it.cycleDays };
     });
     const session = { id: d, date: дата, deload: plan.deload, entries, durationMin: мин, sessionRpe: 7, estimateMin: мин };
