@@ -1,20 +1,20 @@
 // Офлайн-кэш. Меняешь код — подними версию, и обновление приедет само.
-const VERSION = 'kbd-v42';
+const VERSION = 'kbd-v43';
 // Версия в адресе файла — единственный способ гарантированно пробить
 // старый кэш на уже установленном приложении. Меняешь css или app.js —
 // подними ?v= здесь и в index.html.
 const ASSETS = [
   './',
   './index.html',
-  './css/styles.css?v=42',
-  './js/app.js?v=42',
-  './js/data.js?v=42',
-  './js/store.js?v=42',
-  './js/progression.js?v=42',
-  './js/timer.js?v=42',
-  './js/charts.js?v=42',
-  './js/assessment.js?v=42',
-  './js/supplements.js?v=42',
+  './css/styles.css?v=43',
+  './js/app.js?v=43',
+  './js/data.js?v=43',
+  './js/store.js?v=43',
+  './js/progression.js?v=43',
+  './js/timer.js?v=43',
+  './js/charts.js?v=43',
+  './js/assessment.js?v=43',
+  './js/supplements.js?v=43',
   './manifest.webmanifest',
   './icons/icon.svg',
   './icons/icon-192.png',

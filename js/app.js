@@ -1,17 +1,17 @@
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=42';
-import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON } from './store.js?v=42';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=43';
+import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON } from './store.js?v=43';
 import {
   planFor, applySession, summarizeItem, readinessMult, readinessLabel,
   waveIndex, weekIndex, wave, isDeload, acwr, streak, sessionLoad, tonnage, nextStepText, stepText, dayIndex,
   estimateMinutes, pairRealRest, paceFactor, blockStatus, nextBlockSuggestions, commitCycle
-} from './progression.js?v=42';
-import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=42';
-import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=42';
+} from './progression.js?v=43';
+import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=43';
+import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=43';
 
 // byId должен видеть и свои записи пользователя, поэтому оборачиваем
 const byId = (id) => suppById(id, S);
-import { timer, fmt, unlockAudio } from './timer.js?v=42';
-import { barChart, gauge } from './charts.js?v=42';
+import { timer, fmt, unlockAudio } from './timer.js?v=43';
+import { barChart, gauge } from './charts.js?v=43';
 
 // ── Мелкие помощники ─────────────────────────────────────────────────────────
 const $ = (s, r = document) => r.querySelector(s);
@@ -54,6 +54,22 @@ let lastViewKey = null;
 
 function viewKey() {
   return [tab, S.onboarded ? 1 : 0, S.today ? 1 : 0, S.testDraft?.i ?? '-'].join('|');
+}
+
+
+// Сколько дней в неделю занимает программа. Считаем из её же цикла, чтобы
+// подпись не могла разойтись с расписанием. Частота была спрятана в описании,
+// и человек, выбравший трёхдневную программу, натыкался на день отдыха
+// как на неожиданность.
+function частотаПрограммы(prog) {
+  const всего = prog.days.length;
+  const рабочих = prog.days.filter(d => d.focus !== 'rest').length;
+  const вНеделю = Math.round((рабочих * 7 / всего) * 10) / 10;
+  if (вНеделю >= 7) return 'каждый день';
+  const целое = Math.round(вНеделю);
+  const слово = целое === 1 ? 'раз' : целое < 5 ? 'раза' : 'раз';
+  const точно = Number.isInteger(вНеделю) ? `${вНеделю}` : `примерно ${целое}`;
+  return `${точно} ${слово} в неделю`;
 }
 
 function render() {
@@ -130,6 +146,7 @@ function viewOnboarding() {
         <div class="ex-name">${h(p.name)}</div>
         <span class="pill ${S.settings.programId === id ? 'accent' : ''}">${h(p.tag)}</span>
       </div>
+      <div class="muted small" style="opacity:.85">${h(частотаПрограммы(p))}${p.days.length !== 7 ? ` · цикл ${p.days.length} ${p.days.length < 5 ? 'дня' : 'дней'}` : ''}</div>
       <div class="muted small mt">${h(p.desc)}</div>
       <div class="muted small" style="opacity:.75">${h(p.for)}</div>
       ${p.warn ? `<div class="muted small" style="margin-top:8px;color:var(--warn)">⚠️ ${h(p.warn)}</div>` : ''}
@@ -1056,6 +1073,7 @@ function viewSettings() {
   ${Object.entries(PROGRAMS).map(([id, p]) => `
     <div class="card tight tap ${S.settings.programId === id ? 'accent' : ''}" role="button" tabindex="0" data-act="program" data-v="${id}">
       <div class="row between"><div class="ex-name">${h(p.name)}</div><span class="pill ${S.settings.programId === id ? 'accent' : ''}">${h(p.tag)}</span></div>
+      <div class="muted small" style="opacity:.85">${h(частотаПрограммы(p))}${p.days.length !== 7 ? ` · цикл ${p.days.length} ${p.days.length < 5 ? 'дня' : 'дней'}` : ''}</div>
       <div class="muted small mt">${h(p.desc)}</div>
       ${p.warn ? `<div class="muted small" style="margin-top:8px;color:var(--warn)">⚠️ ${h(p.warn)}</div>` : ''}
       ${p.origin ? `<div class="muted small" style="opacity:.6;margin-top:6px">Происхождение: ${h(p.origin)}</div>` : ''}
