@@ -558,6 +558,46 @@ console.log('\n=== 15. Волна не раздувает чужой прото�
     }
   }
 
+  // (б3) Недоделанная тренировка — это факт, а не провал. Сигналом «тяжело»
+  //      остаётся оценка самочувствия: ушёл раньше, но шло нормально — ступень
+  //      держим; было очень тяжело — провал, даже если доделал.
+  for (const pid of Object.keys(PROGRAMS)) {
+    const d0 = PROGRAMS[pid].days.findIndex(x => x.focus !== 'rest');
+    // движение из одного-двух подходов недоделать нельзя: «часть» округляется
+    // до целого и тренировка выходит полной — проверять там нечего
+    {
+      const проб = planFor(mkState({ settings: { programId: pid, bells: [16, 24, 32], pairs: [16, 24] } }), today, null, d0);
+      if (проб.isRest || (проб.items[0]?.sets.length ?? 0) < 3) continue;
+    }
+    const проба = (доля, rpe, раз) => {
+      const st = mkState({ settings: { programId: pid, bells: [16, 24, 32], pairs: [16, 24] } });
+      for (let n = 0; n < раз; n++) {
+        const p = planFor(st, today, null, d0);
+        const it = p.items[0];
+        const сделать = Math.max(1, Math.round(it.sets.length * доля));
+        it.sets.forEach((x, i) => { if (i < сделать) { x.done = true; x.actualReps = x.reps; } });
+        const sum = summarizeItem(it);
+        applySession(st, { id: n, date: today, deload: false, durationMin: 15, sessionRpe: rpe,
+          entries: [{ exId: it.exId, trackId: it.trackId, kind: it.kind, weight: it.weight, maxStep: it.maxStep,
+                      plannedSets: sum.totalSets, doneSets: sum.doneSets, doneReps: sum.doneReps,
+                      doneSec: sum.doneSec, complete: sum.complete, rpe,
+                      perCycle: it.perCycle, cycleDays: it.cycleDays }] });
+      }
+      const p = planFor(st, today, null, d0);
+      const pr = st.progress[p.items[0].exId];
+      pr.steps ||= {};
+      return { шаг: pr.steps[p.items[0].trackId] ?? 0, вес: pr.weight, провалов: pr.fails || 0 };
+    };
+    const было = проба(1, 7, 0);
+    const коротко = проба(0.4, 7, 3);
+    ok(коротко.шаг === было.шаг && коротко.вес === было.вес,
+       `${pid}: три коротких тренировки при нормальном самочувствии сдвинули нагрузку (${было.шаг}/${было.вес} → ${коротко.шаг}/${коротко.вес})`);
+    ok(коротко.провалов === 0, `${pid}: короткая тренировка записана как провал`);
+    const тяжело = проба(0.4, 9, 2);
+    ok(тяжело.шаг < было.шаг || тяжело.вес < было.вес || было.шаг === 0,
+       `${pid}: «очень тяжело» дважды подряд не убавило нагрузку`);
+  }
+
   // (в) постепенная замена гири в минутном режиме делит тяжёлые круги поровну
   for (const [pid, prog] of Object.entries(PROGRAMS)) {
     for (const step of [0, 4, 8, 10, 11]) {

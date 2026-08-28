@@ -1,6 +1,6 @@
 // Движок прогрессии: что делать сегодня и что менять после тренировки.
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=44';
-import { nextBell, prevBell, todayISO } from './store.js?v=44';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=45';
+import { nextBell, prevBell, todayISO } from './store.js?v=45';
 
 const DAY = 86400000;
 
@@ -566,7 +566,15 @@ export function stepText(trackId, step) {
   if (track.kind === 'ladder') return `${s.ladders} ${ladderWord(s.ladders)} ${s.rungs.join('-')}`;
   if (track.kind === 'reps') return `${s.sets} × ${s.reps}`;
   if (track.kind === 'time') return `${s.sets} × ${s.sec} сек`;
-  if (track.kind === 'emom') return `${s.sets} кругов`;
+  if (track.kind === 'emom') {
+    // у чередующихся движений круг это несколько минут, а не одна
+    const alt = s.alt || track.alt;
+    const кругов = alt && alt.length > 1 ? Math.round(s.sets / alt.length) : s.sets;
+    const слово = кругов === 1 ? 'круг' : кругов < 5 ? 'круга' : 'кругов';
+    // объём ступени в чередующихся лестницах меняется повторами, а не кругами:
+    // без них все ступени выглядели бы одинаково
+    return alt && alt.length > 1 ? `${кругов} ${слово}: ${alt.join(' + ')}` : `${кругов} ${слово}`;
+  }
   return '';
 }
 
@@ -674,15 +682,25 @@ export function applySession(state, session) {
       continue;
     }
 
+    // Короткая тренировка — это факт, а не провал. Раньше любая недоделанная
+    // сессия шла в провалы, и две подряд откатывали ступень назад: сделал три
+    // круга из шести после ковра — программа решала, что нагрузка велика,
+    // и убавляла её. Теперь недоделанное просто записывается как есть.
+    // Сигналом «тяжело» остаётся оценка самочувствия, а не число подходов:
+    // ушёл раньше, но шло нормально — держим ступень; было очень тяжело —
+    // это провал независимо от того, доделал или нет.
     if (entry.complete && rpe <= 7) {
       // RPE 6 — комфортно, засчитываем как две удачных: до потолка ещё далеко
       p.wins = (p.wins || 0) + (rpe <= 6 ? 2 : 1);
       p.fails = 0;
-    } else if (!entry.complete || rpe >= 9) {
+    } else if (rpe >= 9) {
       p.fails = (p.fails || 0) + 1;
       p.wins = 0;
     } else {
-      changes.push({ exId: entry.exId, type: 'hold', text: `${ex.short}: закрепляем, ещё разок так же` });
+      const текст = entry.complete
+        ? `${ex.short}: закрепляем, ещё разок так же`
+        : `${ex.short}: записал сколько получилось — ступень не меняю, идём дальше`;
+      changes.push({ exId: entry.exId, type: 'hold', text: текст });
       continue;
     }
 
