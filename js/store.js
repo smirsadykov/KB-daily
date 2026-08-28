@@ -1,5 +1,5 @@
 // Хранилище состояния. Всё живёт в localStorage, без сервера.
-import { EXERCISES, PROGRAMS } from './data.js?v=43';
+import { EXERCISES, PROGRAMS } from './data.js?v=44';
 
 const KEY = 'kbdaily.v1';
 

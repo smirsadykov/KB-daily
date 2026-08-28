@@ -1,6 +1,6 @@
 // Движок прогрессии: что делать сегодня и что менять после тренировки.
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=43';
-import { nextBell, prevBell, todayISO } from './store.js?v=43';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=44';
+import { nextBell, prevBell, todayISO } from './store.js?v=44';
 
 const DAY = 86400000;
 
@@ -202,8 +202,12 @@ function expandSets(exId, ex, step, kind, weight, mult, bells = [], track = {}, 
     const heavier = step.swapIn ? (nextBell(weight, bells) ?? weight) : null;
     const heavyN = step.swapIn ? Math.min(step.swapIn * минутВКруге, n) : 0;
     for (let i = 0; i < n; i++) {
+      // Круг и минута — не одно и то же, когда движения чередуются: круг это
+      // минута махов ПЛЮС минута трастеров. Раньше каждая строка подписывалась
+      // как «1 круг», и шесть кругов программы выглядели на экране двенадцатью.
       push({ reps: 1, side: doubles || alt ? null : sideFor(i), complex: true,
              doubled: doubles, alt: !!alt, weight: i < heavyN ? heavier : weight,
+             round: Math.floor(i / минутВКруге) + 1, rounds: Math.round(n / минутВКруге),
              complexReps: alt ? alt[i % alt.length] : '2 заброса · 1 жим · 3 приседа' });
     }
     return { sets, rest: 0, emom: step.emom, doubled: doubles, alt: !!alt, heavy: heavyN };
@@ -393,8 +397,12 @@ function refreshScheme(item) {
     // У чередующихся движений считаем КРУГАМИ: минута махов плюс минута трастеров.
     const кругов = item.alt ? Math.round((item.heavy || 0) / 2) : (item.heavy || 0);
     const заход = кругов ? `, из них ${кругов} ${кругов === 1 ? 'круг' : кругов < 5 ? 'круга' : 'кругов'} новым весом` : '';
+    // Считаем кругами, как считает сам источник: шесть кругов, а не двенадцать
+    // подходов. Минуты подписываем рядом, потому что отмечать в приложении
+    // приходится именно их.
+    const круговВсего = item.sets[0]?.rounds || item.sets.length;
     item.scheme = item.alt
-      ? `${item.sets.length} подходов · движения чередуются${заход}`
+      ? `${круговВсего} ${круговВсего === 1 ? 'круг' : круговВсего < 5 ? 'круга' : 'кругов'} · ${item.sets.length} минут · движения чередуются${заход}`
       : `${item.sets.length} кругов` + (item.doubled ? ' · двумя гирями' : ' · на каждую сторону') + заход;
   }
   else if (item.kind === 'swap') {

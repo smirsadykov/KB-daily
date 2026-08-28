@@ -1,17 +1,17 @@
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=43';
-import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON } from './store.js?v=43';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=44';
+import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON } from './store.js?v=44';
 import {
   planFor, applySession, summarizeItem, readinessMult, readinessLabel,
   waveIndex, weekIndex, wave, isDeload, acwr, streak, sessionLoad, tonnage, nextStepText, stepText, dayIndex,
   estimateMinutes, pairRealRest, paceFactor, blockStatus, nextBlockSuggestions, commitCycle
-} from './progression.js?v=43';
-import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=43';
-import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=43';
+} from './progression.js?v=44';
+import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=44';
+import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=44';
 
 // byId должен видеть и свои записи пользователя, поэтому оборачиваем
 const byId = (id) => suppById(id, S);
-import { timer, fmt, unlockAudio } from './timer.js?v=43';
-import { barChart, gauge } from './charts.js?v=43';
+import { timer, fmt, unlockAudio } from './timer.js?v=44';
+import { barChart, gauge } from './charts.js?v=44';
 
 // ── Мелкие помощники ─────────────────────────────────────────────────────────
 const $ = (s, r = document) => r.querySelector(s);
@@ -495,7 +495,8 @@ function viewSet(it, s, i, j, exLabel) {
   const title = s.gs
     ? `${Math.round(s.sec / 60)} мин · ${s.rpm} в минуту = ${s.reps} подъёмов`
     : isTime ? (s.sec >= 120 ? `${Math.round(s.sec / 60)} мин` : `${s.sec} сек`)
-    : s.complex ? `1 круг${s.complexReps ? ' · ' + s.complexReps : ''}` : `${exLabel ? exLabel + ' · ' : ''}${s.actualReps ?? s.reps} ${plural(s.actualReps ?? s.reps, 'повтор', 'повтора', 'повторов')}`;
+    : s.complex ? `${s.alt && s.rounds ? `круг ${s.round} из ${s.rounds}` : '1 круг'}${s.complexReps ? ' · ' + s.complexReps : ''}`
+    : `${exLabel ? exLabel + ' · ' : ''}${s.actualReps ?? s.reps} ${plural(s.actualReps ?? s.reps, 'повтор', 'повтора', 'повторов')}`;
   const sub = [s.side ? `<span class="side-${s.side}">${sideText(s.side)}</span>` : '', `${s.weight} кг`, s.rung ? `ступень ${s.rung}` : '']
     .filter(Boolean).join(' · ');
   const btn = s.done ? '✓ есть' : s.gs || s.sec >= 120 ? `▶ ${Math.round(s.sec / 60)} мин` : isTime ? `▶ ${s.sec}с` : 'Готово';
