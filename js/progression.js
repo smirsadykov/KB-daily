@@ -1,6 +1,6 @@
 // Движок прогрессии: что делать сегодня и что менять после тренировки.
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=47';
-import { nextBell, prevBell, todayISO } from './store.js?v=47';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=48';
+import { nextBell, prevBell, todayISO } from './store.js?v=48';
 
 const DAY = 86400000;
 
@@ -205,10 +205,14 @@ function expandSets(exId, ex, step, kind, weight, mult, bells = [], track = {}, 
       // Круг и минута — не одно и то же, когда движения чередуются: круг это
       // минута махов ПЛЮС минута трастеров. Раньше каждая строка подписывалась
       // как «1 круг», и шесть кругов программы выглядели на экране двенадцатью.
+      // reps: 1 — это отметка «круг сделан», она не годится для тоннажа.
+      // loadReps — сколько повторов гирей реально в этом подходе.
+      const altReps = step.altReps || track.altReps;
       push({ reps: 1, side: doubles || alt ? null : sideFor(i), complex: true,
              doubled: doubles, alt: !!alt, weight: i < heavyN ? heavier : weight,
              round: Math.floor(i / минутВКруге) + 1, rounds: Math.round(n / минутВКруге),
-             complexReps: alt ? alt[i % alt.length] : '2 заброса · 1 жим · 3 приседа' });
+             loadReps: alt ? (altReps ? altReps[i % altReps.length] : 1) : (track.complex?.reps ?? 1),
+             complexReps: alt ? alt[i % alt.length] : (track.complex?.label ?? '') });
     }
     return { sets, rest: 0, emom: step.emom, doubled: doubles, alt: !!alt, heavy: heavyN };
   }
@@ -594,10 +598,13 @@ export function summarizeItem(item) {
   const doneReps = doneSets.reduce((a, s) => a + (s.actualReps ?? s.reps ?? 0), 0);
   const plannedSec = item.sets.reduce((a, s) => a + (s.sec || 0), 0);
   const doneSec = doneSets.reduce((a, s) => a + (s.sec || 0), 0);
+  // Повторы для тоннажа: у комплексов и минутных режимов reps — это отметка
+  // «круг сделан», а не число подъёмов. Тоннаж должен считаться по факту.
+  const doneLoadReps = doneSets.reduce((a, s) => a + (s.loadReps ?? s.actualReps ?? s.reps ?? 0), 0);
   const complete = doneSets.length >= item.sets.length &&
     (plannedReps === 0 || doneReps >= plannedReps * 0.95) &&
     (plannedSec === 0 || doneSec >= plannedSec * 0.95);
-  return { doneSets: doneSets.length, totalSets: item.sets.length, doneReps, plannedReps, doneSec, complete };
+  return { doneSets: doneSets.length, totalSets: item.sets.length, doneReps, doneLoadReps, plannedReps, doneSec, complete };
 }
 
 // Размер поправки зависит от размера промаха.
@@ -748,7 +755,10 @@ export function tonnage(session) {
   let t = 0;
   for (const e of session.entries) {
     if (e.kind === 'time') continue;
-    t += (e.doneReps || 0) * (e.weight || 0);
+    // Двугиревые движения поднимают две гири: в дне A на паре 16 в каждом
+    // повторе 32 кг, а не 16. Раньше тоннаж занижался ровно вдвое.
+    const гирь = EXERCISES[e.exId]?.double ? 2 : 1;
+    t += (e.doneLoadReps ?? e.doneReps ?? 0) * (e.weight || 0) * гирь;
   }
   return t;
 }

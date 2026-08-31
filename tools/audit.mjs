@@ -1,4 +1,4 @@
-import { planFor, applySession, summarizeItem, estimateMinutes, acwr, streak } from '../js/progression.js';
+import { planFor, applySession, summarizeItem, estimateMinutes, tonnage, acwr, streak } from '../js/progression.js';
 import { PROGRAMS, TRACKS, EXERCISES } from '../js/data.js';
 
 let fails = 0, checks = 0;
@@ -653,6 +653,31 @@ console.log('\n=== 15. Волна не раздувает чужой прото�
     ok(тяжело.вес === было.вес,
        `${pid}: «очень тяжело» само сменило гирю ${было.вес} → ${тяжело.вес} кг, а должно было предложить`);
     ok(тяжело.шаг <= было.шаг, `${pid}: «очень тяжело» подняло ступень`);
+  }
+
+  // (б4) Тоннаж считается по реально поднятому весу: пара гирь это двойной
+  //      вес в повторе, а «круг» в минутном режиме — не один повтор.
+  for (const [pid, prog] of Object.entries(PROGRAMS)) {
+    const st = mkState({ settings: { programId: pid, bells: [16, 24, 32], pairs: [16, 24] } });
+    for (let d = 0; d < prog.days.length; d++) {
+      const p = planFor(st, today, null, d);
+      if (p.isRest) continue;
+      p.items.forEach(it => it.sets.forEach(x => { x.done = true; x.actualReps = x.reps; }));
+      for (const it of p.items) {
+        if (it.kind === 'time') continue;
+        const sum = summarizeItem(it);
+        const гирь = EXERCISES[it.exId].double ? 2 : 1;
+        const ожидание = it.sets.reduce((a, x) => a + (x.loadReps ?? x.reps ?? 0) * (x.weight || 0) * гирь, 0);
+        const факт = tonnage({ entries: [{ exId: it.exId, kind: it.kind, weight: it.weight,
+                                           doneReps: sum.doneReps, doneLoadReps: sum.doneLoadReps }] });
+        // тоннаж считается по единому весу позиции, поэтому сверяем на движениях
+        // без частичной замены гири — там веса подходов разные по замыслу
+        if (it.sets.some(x => x.weight !== it.weight)) continue;
+        ok(факт === ожидание,
+           `${pid}/д${d}: ${it.exId} тоннаж ${факт} кг вместо ${ожидание} кг`);
+        if (гирь === 2) ok(факт > 0 && факт % 2 === 0, `${pid}: ${it.exId} двугиревой тоннаж должен учитывать обе гири`);
+      }
+    }
   }
 
   // (в) постепенная замена гири в минутном режиме делит тяжёлые круги поровну

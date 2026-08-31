@@ -117,7 +117,7 @@ function прогон(pid, профиль, seed = 7) {
       it.sets.forEach((x, i) => { if (i < делать) { x.done = true; x.actualReps = x.reps; } });
       const sum = summarizeItem(it);
       return { exId: it.exId, trackId: it.trackId, kind: it.kind, weight: it.weight,
-               plannedSets: sum.totalSets, doneSets: sum.doneSets, doneReps: sum.doneReps, doneSec: sum.doneSec,
+               plannedSets: sum.totalSets, doneSets: sum.doneSets, doneReps: sum.doneReps, doneLoadReps: sum.doneLoadReps, doneSec: sum.doneSec,
                complete: sum.complete, maxStep: it.maxStep,
                rpe: п.rpe(rnd()), perCycle: it.perCycle, cycleDays: it.cycleDays };
     });
