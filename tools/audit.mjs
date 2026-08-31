@@ -100,50 +100,98 @@ for (const [pid] of Object.entries(PROGRAMS)) {
 }
 console.log(`  всего проверок ${checks}, провалов ${fails}`);
 
-console.log('\n=== 5. Прогрессия ===');
+console.log('\n=== 5. Прогрессия: приложение предлагает, но не меняет ===');
 {
-  const st = mkState();
-  st.progress.swing_1h = { weight: 24, step: 0, wins: 0, fails: 0 };
+  // Главное свойство: разбор тренировки не трогает ни вес, ни ступень.
+  // Он копит наблюдения и выдаёт предложение с готовым «применить».
+  const снимок = (st, ex) => JSON.stringify({ w: st.progress[ex].weight, s: st.progress[ex].steps?.swing_vol ?? st.progress[ex].step });
   const good = { deload: false, entries: [{ exId: 'swing_1h', trackId: 'swing_vol', complete: true, rpe: 7 }] };
   const need = TRACKS.swing_vol.winsNeeded ?? 2;
-  ok(need >= 3, 'основное движение должно требовать не меньше трёх удачных тренировок на шаг');
-  for (let i = 1; i < need; i++) {
-    applySession(st, good);
-    ok(st.progress.swing_1h.steps.swing_vol === 0, `${i} удачных из ${need} не должны двигать шаг`);
-  }
-  applySession(st, good);
-  ok(st.progress.swing_1h.steps.swing_vol === 1, `${need} удачных должны дать шаг вперёд`);
+  ok(need >= 3, 'основное движение должно требовать не меньше трёх спокойных тренировок до разговора о прибавке');
 
+  const st = mkState();
+  st.progress.swing_1h = { weight: 24, step: 0, steps: {}, wins: 0, fails: 0 };
+  const до = снимок(st, 'swing_1h');
+  let предложение = null;
+  for (let i = 0; i < need + 2; i++) {
+    const изм = applySession(st, good);
+    ok(снимок(st, 'swing_1h') === до, `после ${i + 1} тренировок нагрузка изменилась сама`);
+    предложение = изм.find(c => c.type === 'suggest-up') || предложение;
+  }
+  ok(!!предложение, `${need} спокойных тренировок должны родить предложение прибавить`);
+  ok(предложение?.apply && предложение.apply.step === 1 && предложение.apply.weight === 24,
+     `предложение должно вести на следующую ступень тем же весом, получили ${JSON.stringify(предложение?.apply)}`);
+
+  // с последней ступени предлагается гиря тяжелее и объём заново
   const last = TRACKS.swing_vol.steps.length - 1;
   const st2 = mkState();
-  st2.progress.swing_1h = { weight: 24, step: last, steps: { swing_vol: last }, wins: need - 1, fails: 0 };
-  applySession(st2, good);
-  ok(st2.progress.swing_1h.weight === 32 && st2.progress.swing_1h.steps.swing_vol === TRACKS.swing_vol.reset,
-     `с последнего шага должен быть переход на 32 кг, получили ${st2.progress.swing_1h.weight}/шаг ${st2.progress.swing_1h.steps.swing_vol}`);
+  st2.progress.swing_1h = { weight: 24, step: last, steps: { swing_vol: last }, wins: need, fails: 0 };
+  const изм2 = applySession(st2, good);
+  const п2 = изм2.find(c => c.type === 'suggest-up');
+  ok(st2.progress.swing_1h.weight === 24, 'вес не должен смениться сам');
+  ok(п2?.apply?.weight === 32 && п2.apply.step === (TRACKS.swing_vol.reset ?? 0),
+     `с последней ступени предложение должно вести на 32 кг и сброс объёма, получили ${JSON.stringify(п2?.apply)}`);
 
-  // смена гири должна быть постепенной, а не прыжком
+  // смена гири постепенная — ступени замены на месте
   const swapSteps = TRACKS.swing_vol.steps.filter(x => x.swapIn);
   ok(swapSteps.length >= 4, 'перед сменой гири должны быть ступени постепенной замены подходов');
   ok(swapSteps[swapSteps.length - 1].swapIn === 10, 'последняя ступень замены должна переводить все подходы на новый вес');
 
+  // разгрузка ничего не двигает и счётчик не сбрасывает
   const st3 = mkState();
   st3.progress.swing_1h = { weight: 24, step: 4, steps: { swing_vol: 4 }, wins: 1, fails: 0 };
   applySession(st3, { deload: true, entries: [{ exId: 'swing_1h', trackId: 'swing_vol', complete: true, rpe: 6 }] });
-  ok(st3.progress.swing_1h.steps.swing_vol === 4 && st3.progress.swing_1h.wins === 1, 'на разгрузке шаг не двигается и счётчик не сбрасывается');
+  ok(st3.progress.swing_1h.steps.swing_vol === 4 && st3.progress.swing_1h.wins === 1,
+     'на разгрузке ступень не двигается и счётчик не сбрасывается');
 
+  // тяжело дважды подряд — предложение убавить, но не сама убавка
   const st4 = mkState();
   st4.progress.swing_1h = { weight: 24, step: 3, steps: { swing_vol: 3 }, wins: 0, fails: 1 };
-  applySession(st4, { deload: false, entries: [{ exId: 'swing_1h', trackId: 'swing_vol', complete: false, rpe: 9 }] });
-  ok(st4.progress.swing_1h.steps.swing_vol === 2, 'две неудачных должны откатить шаг');
+  const изм4 = applySession(st4, { deload: false, entries: [{ exId: 'swing_1h', trackId: 'swing_vol', complete: false, rpe: 9 }] });
+  const п4 = изм4.find(c => c.type === 'suggest-down');
+  ok(st4.progress.swing_1h.steps.swing_vol === 3, 'ступень не должна откатиться сама');
+  ok(п4?.apply?.step === 2, `должно предлагаться вернуться на ступень ниже, получили ${JSON.stringify(п4?.apply)}`);
 
+  // «тяжеловато» — рабочая зона, ничего не предлагаем и счётчик не рушим
   const st5 = mkState();
   st5.progress.swing_1h = { weight: 24, step: 2, steps: { swing_vol: 2 }, wins: 1, fails: 0 };
-  applySession(st5, { deload: false, entries: [{ exId: 'swing_1h', trackId: 'swing_vol', complete: true, rpe: 8 }] });
-  ok(st5.progress.swing_1h.wins === 1 && st5.progress.swing_1h.steps.swing_vol === 2, 'RPE 8 — стоим на месте, счётчик не должен сбрасываться');
+  const изм5 = applySession(st5, { deload: false, entries: [{ exId: 'swing_1h', trackId: 'swing_vol', complete: true, rpe: 8 }] });
+  ok(st5.progress.swing_1h.wins === 1 && st5.progress.swing_1h.steps.swing_vol === 2,
+     'на «тяжеловато» стоим на месте, счётчик не сбрасывается');
+  ok(!изм5.some(c => c.apply), 'на «тяжеловато» ничего не предлагаем');
+
+  // «совсем легко» — предложение сразу, без накопления
+  const st6 = mkState();
+  st6.progress.swing_1h = { weight: 24, step: 2, steps: { swing_vol: 2 }, wins: 0, fails: 0 };
+  const изм6 = applySession(st6, { deload: false, entries: [{ exId: 'swing_1h', trackId: 'swing_vol', complete: true, rpe: 4 }] });
+  const п6 = изм6.find(c => c.type === 'suggest-up');
+  ok(st6.progress.swing_1h.steps.swing_vol === 2, 'даже на «совсем легко» ступень не двигается сама');
+  ok(п6?.apply?.step > 2, `на «совсем легко» предложение должно перепрыгнуть вперёд, получили ${JSON.stringify(п6?.apply)}`);
+
+  // ни одна программа не должна менять нагрузку сама
+  for (const pid of Object.keys(PROGRAMS)) {
+    const s = mkState({ settings: { programId: pid, bells: [16, 24, 32], pairs: [16, 24] } });
+    const d0 = PROGRAMS[pid].days.findIndex(x => x.focus !== 'rest');
+    const до2 = JSON.stringify(Object.fromEntries(Object.entries(s.progress).map(([k, v]) =>
+      // первый разбор заводит запись ступени со значением 0 — это не изменение нагрузки
+      [k, [v.weight, Object.entries(v.steps || {}).filter(([, x]) => x !== 0).sort()]])));
+    for (let n = 0; n < 6; n++) {
+      const p = planFor(s, today, null, d0);
+      if (p.isRest) break;
+      p.items.forEach(it => it.sets.forEach(x => { x.done = true; x.actualReps = x.reps; }));
+      applySession(s, { id: n, date: today, deload: false, durationMin: 20, sessionRpe: 6,
+        entries: p.items.map(it => { const sum = summarizeItem(it); return {
+          exId: it.exId, trackId: it.trackId, kind: it.kind, weight: it.weight, maxStep: it.maxStep,
+          plannedSets: sum.totalSets, doneSets: sum.doneSets, doneReps: sum.doneReps, doneSec: sum.doneSec,
+          complete: sum.complete, rpe: 6, perCycle: it.perCycle, cycleDays: it.cycleDays }; }) });
+    }
+    const после = JSON.stringify(Object.fromEntries(Object.entries(s.progress).map(([k, v]) =>
+      // первый разбор заводит запись ступени со значением 0 — это не изменение нагрузки
+      [k, [v.weight, Object.entries(v.steps || {}).filter(([, x]) => x !== 0).sort()]])));
+    ok(до2 === после, `${pid}: шесть тренировок «легко» изменили нагрузку без участия человека`);
+  }
 }
 console.log(`  всего проверок ${checks}, провалов ${fails}`);
-
-console.log('\n=== 6. Готовность и волна ===');
 {
   const st = mkState();
   const norm = planFor(st, today, { sleep: 4, soreness: 4, energy: 4 });
@@ -277,7 +325,7 @@ console.log('\n=== 10. Потолки не режут последние сту�
 console.log(`  всего проверок ${checks}, провалов ${fails}`);
 console.log(`\nВСЕГО: ${checks} проверок, ${fails} провалов`);
 
-console.log('\n=== 11. Поправка пропорциональна промаху ===');
+console.log('\n=== 11. Размер предложения пропорционален промаху ===');
 {
   const mk2 = (step) => {
     const st = mkState();
@@ -286,59 +334,65 @@ console.log('\n=== 11. Поправка пропорциональна пром�
   };
   const sess = (rpe, complete = true) => ({ deload: false, entries: [{ exId: 'abc', trackId: 'abc_emom', complete, rpe }] });
   const stepOf = (st) => st.progress.abc.steps.abc_emom;
+  const предл = (изм, тип) => изм.find(c => c.type === тип);
 
+  // «совсем мимо» — предложение сразу и сразу на несколько ступеней
   let st = mk2(0);
-  applySession(st, sess(4));
-  ok(stepOf(st) === 3, `RPE 4 «не заметил нагрузки» должен дать +3 сразу, получили ${stepOf(st)}`);
+  let и = applySession(st, sess(4));
+  ok(stepOf(st) === 0, 'ступень не двигается сама даже на RPE 4');
+  ok(предл(и, 'suggest-up')?.apply?.step === 3, `RPE 4 «не заметил нагрузки» должен предлагать +3, получили ${JSON.stringify(предл(и, 'suggest-up')?.apply)}`);
 
   st = mk2(0);
-  applySession(st, sess(5));
-  ok(stepOf(st) === 2, `RPE 5 «совсем легко» должен дать +2 сразу, получили ${stepOf(st)}`);
+  и = applySession(st, sess(5));
+  ok(предл(и, 'suggest-up')?.apply?.step === 2, `RPE 5 «совсем легко» должен предлагать +2, получили ${JSON.stringify(предл(и, 'suggest-up')?.apply)}`);
+
+  // «легко» идёт в копилку с двойным зачётом, «нормально» — с одинарным.
+  // Порог берём из самой лестницы, чтобы тест не разъезжался с данными.
+  const порог = Math.max(2, TRACKS.abc_emom.winsNeeded ?? 2);
+  st = mk2(0);
+  for (let i = 1; i <= Math.ceil(порог / 2); i++) и = applySession(st, sess(6));
+  ok(!!предл(и, 'suggest-up'), `на RPE 6 предложение должно прийти за ${Math.ceil(порог / 2)} тренировок (двойной зачёт)`);
 
   st = mk2(0);
-  applySession(st, sess(6));
-  ok(stepOf(st) === 0, 'RPE 6 сразу шаг не двигает');
-  applySession(st, sess(6));
-  ok(stepOf(st) === 1, 'две тренировки на RPE 6 дают шаг (комфортно = двойной зачёт)');
+  for (let i = 1; i < порог; i++) {
+    и = applySession(st, sess(7));
+    ok(!предл(и, 'suggest-up'), `${i} тренировок из ${порог} на RPE 7 — предложения ещё быть не должно`);
+  }
+  и = applySession(st, sess(7));
+  ok(!!предл(и, 'suggest-up'), `после ${порог} тренировок на RPE 7 предложение появляется`);
+  ok(stepOf(st) === 0, 'и при этом ступень так и стоит на месте');
 
-  st = mk2(0);
-  for (let i = 0; i < 2; i++) applySession(st, sess(7));
-  ok(stepOf(st) === 0, 'на RPE 7 две тренировки шаг ещё не двигают');
-  applySession(st, sess(7));
-  ok(stepOf(st) === 1, 'на RPE 7 шаг приходит с третьей тренировки');
-
-  // Смена веса — единственное место, где спешить нельзя: 24→32 это +33%.
-  // Поэтому «было легко» на последней ступени вес НЕ меняет, а идёт в счётчик.
+  // на последней ступени предлагается вес, и только после подтверждений
   const lastIdx = TRACKS.abc_emom.steps.length - 1;
   st = mk2(lastIdx);
-  applySession(st, sess(4));
-  ok(st.progress.abc.weight === 24 && stepOf(st) === lastIdx,
-     `лёгкая тренировка на последней ступени не должна менять вес сразу, получили ${st.progress.abc.weight}/${stepOf(st)}`);
-  applySession(st, sess(6));
-  ok(st.progress.abc.weight === 32 && stepOf(st) === (TRACKS.abc_emom.reset ?? 0),
-     `после подтверждения вес меняется один раз, получили ${st.progress.abc.weight}/${stepOf(st)}`);
+  и = applySession(st, sess(4));
+  ok(st.progress.abc.weight === 24 && stepOf(st) === lastIdx, 'вес сам не меняется');
+  и = applySession(st, sess(6));
+  const пв = предл(и, 'suggest-up');
+  ok(пв?.apply?.weight === 32 && пв.apply.step === (TRACKS.abc_emom.reset ?? 0),
+     `с последней ступени предлагается гиря тяжелее и сброс объёма, получили ${JSON.stringify(пв?.apply)}`);
 
-  // и не должна прыгать за конец лестницы
+  // предложение не перескакивает конец лестницы
   st = mk2(lastIdx - 1);
-  applySession(st, sess(4));
-  ok(stepOf(st) === lastIdx && st.progress.abc.weight === 24,
-     `прыжок не должен перескакивать последнюю ступень, получили ${stepOf(st)}/${st.progress.abc.weight}`);
+  и = applySession(st, sess(4));
+  ok(предл(и, 'suggest-up')?.apply?.step === lastIdx && st.progress.abc.weight === 24,
+     `прыжок не должен перескакивать последнюю ступень, получили ${JSON.stringify(предл(и, 'suggest-up')?.apply)}`);
 
-  // вниз реакция остаётся осторожной
+  // вниз — тоже предложение, и только со второго раза
   st = mk2(5);
-  applySession(st, sess(10, false));
-  ok(stepOf(st) === 5, 'один провал шаг не откатывает');
-  applySession(st, sess(10, false));
-  ok(stepOf(st) === 4, 'два провала подряд откатывают на один шаг, не больше');
+  и = applySession(st, sess(10, false));
+  ok(!предл(и, 'suggest-down'), 'один тяжёлый раз — ещё не повод предлагать убавить');
+  и = applySession(st, sess(10, false));
+  ok(предл(и, 'suggest-down')?.apply?.step === 4, `два тяжёлых подряд предлагают ступень ниже, получили ${JSON.stringify(предл(и, 'suggest-down')?.apply)}`);
+  ok(stepOf(st) === 5, 'сама ступень при этом не откатывается');
 
-  // на разгрузке ничего не двигается даже при RPE 4
+  // на разгрузке не предлагаем ничего
   st = mk2(3);
-  applySession(st, { deload: true, entries: [{ exId: 'abc', trackId: 'abc_emom', complete: true, rpe: 4 }] });
-  ok(stepOf(st) === 3, 'на разгрузочной неделе лёгкая тренировка не двигает шаг');
+  и = applySession(st, { deload: true, entries: [{ exId: 'abc', trackId: 'abc_emom', complete: true, rpe: 4 }] });
+  ok(stepOf(st) === 3 && !и.some(c => c.apply), 'на разгрузочной неделе ничего не двигаем и не предлагаем');
 }
 console.log(`  всего проверок ${checks}, провалов ${fails}`);
 console.log(`\nРЕЗУЛЬТАТ: ${checks} проверок, ${fails} провалов`);
-
 console.log('\n=== 12. Двугиревые движения при наличии пары ===');
 {
   // Раньше движок сверял пару с ТЕКУЩИМ рабочим весом. Упражнение стартовало

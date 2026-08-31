@@ -1,5 +1,5 @@
 // Хранилище состояния. Всё живёт в localStorage, без сервера.
-import { EXERCISES, PROGRAMS } from './data.js?v=46';
+import { EXERCISES, PROGRAMS } from './data.js?v=47';
 
 const KEY = 'kbdaily.v1';
 
@@ -16,7 +16,12 @@ function defaultWeights(bells) {
   const w = {};
   for (const [id, ex] of Object.entries(EXERCISES)) {
     if (ex.kind === 'mobility') continue;
-    w[id] = ex.load === 'ballistic' ? ballistic : ex.load === 'heavy' ? heavy : grind;
+    // Двугиревые движения стартуют с самой лёгкой гири. Правило «баллистика →
+    // вторая гиря снизу» писалось под одну гирю: с двумя оно даёт вдвое
+    // больший вес в повторе, и человек начинал с 15 махов по 48 кг.
+    w[id] = ex.double ? grind
+      : ex.load === 'ballistic' ? ballistic
+      : ex.load === 'heavy' ? heavy : grind;
   }
   return w;
 }

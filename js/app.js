@@ -1,17 +1,17 @@
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=46';
-import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON } from './store.js?v=46';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=47';
+import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON } from './store.js?v=47';
 import {
   planFor, applySession, summarizeItem, readinessMult, readinessLabel,
   waveIndex, weekIndex, wave, isDeload, acwr, streak, sessionLoad, tonnage, nextStepText, stepText, dayIndex,
   estimateMinutes, pairRealRest, paceFactor, blockStatus, nextBlockSuggestions, commitCycle
-} from './progression.js?v=46';
-import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=46';
-import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=46';
+} from './progression.js?v=47';
+import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=47';
+import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=47';
 
 // byId должен видеть и свои записи пользователя, поэтому оборачиваем
 const byId = (id) => suppById(id, S);
-import { timer, fmt, unlockAudio } from './timer.js?v=46';
-import { barChart, gauge } from './charts.js?v=46';
+import { timer, fmt, unlockAudio } from './timer.js?v=47';
+import { barChart, gauge } from './charts.js?v=47';
 
 // ── Мелкие помощники ─────────────────────────────────────────────────────────
 const $ = (s, r = document) => r.querySelector(s);
@@ -1430,6 +1430,21 @@ const actions = {
     closeSheet(); render(); toast('Удалил');
   },
   // ── Тест кондиций ──
+  'apply-suggest'(el) {
+    const c = предложения[+el.dataset.i];
+    if (!c?.apply) return;
+    update(s => {
+      const p = s.progress[c.apply.exId];
+      if (!p) return;
+      p.steps ||= {};
+      p.steps[c.apply.trackId] = c.apply.step;
+      p.weight = c.apply.weight;
+      p.wins = 0; p.fails = 0;
+      s.today = null;
+    });
+    el.outerHTML = '<div class="muted small mt">Применил</div>';
+    toast('Нагрузка обновлена');
+  },
   deload(el) {
     update(s => { s.settings.deloadEvery = +el.dataset.v; s.today = null; });
     render();
@@ -1592,17 +1607,28 @@ function finishSheetHTML(items, mins) {
   <button class="btn ghost mt" data-act="close-sheet">Ещё не закончил</button>`;
 }
 
+// Предложения из последнего разбора: нужны, чтобы кнопка «Применить»
+// знала, что именно применять. Живут только до закрытия отчёта.
+let предложения = [];
+
 function showResult(session, changes) {
-  const good = changes.filter(c => c.type === 'weight-up' || c.type === 'step-up');
+  предложения = changes.filter(c => c.apply);
+  const есть = предложения.length;
   openSheet(`
-    <div class="big-check">${good.length ? '🔥' : '✓'}</div>
-    <h2 class="center">${good.length ? 'Есть прогресс' : 'Записал'}</h2>
+    <div class="big-check">${есть ? '💡' : '✓'}</div>
+    <h2 class="center">Записал</h2>
     <p class="muted center small">${tonnage(session).toLocaleString('ru-RU')} кг поднято · ${session.durationMin} мин · нагрузка ${sessionLoad(session)}</p>
     <div class="card mt">
-      ${changes.map(c => `<div class="row" style="padding:6px 0;gap:8px">
-        <span>${c.type === 'weight-up' ? '⬆️' : c.type === 'step-up' ? '▲' : c.type === 'suggest-down' ? '💡' : c.type === 'step-down' || c.type === 'weight-down' ? '▼' : '•'}</span>
-        <span class="grow small">${h(c.text)}</span></div>`).join('')}
+      ${changes.map((c) => {
+        const i = предложения.indexOf(c);
+        const значок = c.type === 'suggest-up' ? '💡' : c.type === 'suggest-down' ? '💡' : c.type === 'max' ? '🏁' : '•';
+        return `<div style="padding:8px 0;border-bottom:1px solid var(--line)">
+          <div class="row" style="gap:8px"><span>${значок}</span><span class="grow small">${h(c.text)}</span></div>
+          ${i >= 0 ? `<button class="btn ghost sm mt" data-act="apply-suggest" data-i="${i}">Применить</button>` : ''}
+        </div>`;
+      }).join('')}
     </div>
+    ${есть ? '<p class="muted small center">Приложение само нагрузку не меняет. Прибавляешь тогда, когда сам считаешь нужным — здесь или в «Ещё → Рабочие веса и ступени».</p>' : ''}
     <button class="btn" data-act="close-sheet">Готово</button>`);
 }
 

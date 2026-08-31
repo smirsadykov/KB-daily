@@ -26,7 +26,7 @@ function прогон(pid, профиль, seed = 7) {
   // окно целиком в прошлом, чтобы работал настоящий resolveCycle
   const t0 = new Date(Date.now() - (ДНЕЙ + 2) * D);
   const st = {
-    settings: { programId: pid, startDate: iso(t0), bells: [16, 24, 32], pairs: [24],
+    settings: { programId: pid, startDate: iso(t0), bells: [16, 24, 32], pairs: [16, 24],
                 cyclePos: 0, cycleDate: iso(t0), warmup: true, cooldown: true, tgu: pid === 's_and_s',
                 deloadEvery: 6 },
     progress: Object.fromEntries(Object.keys(EXERCISES).filter(k => EXERCISES[k].kind !== 'mobility')
@@ -39,9 +39,15 @@ function прогон(pid, профиль, seed = 7) {
   const объёмПоНеделям = {};
   const виденныеДни = new Set();
   let итогНедели = null;
+  let предложений = 0;
+  // ступень со значением 0 заводится при первом разборе — это не изменение
+  const снимокНагрузки = (s) => JSON.stringify(Object.entries(s.progress)
+    .map(([k, v]) => [k, v.weight, Object.entries(v.steps || {}).filter(([, x]) => x !== 0).sort()]));
+  let нагрузкаБыла = null;
   const объёмПоДням = {};
   const всегоДней = PROGRAMS[pid].days.length;
 
+  нагрузкаБыла = снимокНагрузки(st);
   for (let d = 0; d < ДНЕЙ; d++) {
     const дата = iso(new Date(t0.getTime() + d * D));
     const неделя = Math.floor(d / 7);
@@ -116,8 +122,16 @@ function прогон(pid, профиль, seed = 7) {
                rpe: п.rpe(rnd()), perCycle: it.perCycle, cycleDays: it.cycleDays };
     });
     const session = { id: d, date: дата, deload: plan.deload, entries, durationMin: мин, sessionRpe: 7, estimateMin: мин };
-    try { applySession(st, session); }
+    let изменения = [];
+    try { изменения = applySession(st, session) || []; }
     catch (e) { баг(pid, 'падение', `${профиль}, день ${d}: applySession — ${e.message}`); break; }
+    предложений += изменения.filter(c => c.apply).length;
+    // приложение не имеет права само двигать вес или ступень
+    const слепок = снимокНагрузки(st);
+    if (слепок !== нагрузкаБыла) {
+      баг(pid, 'нагрузка сама', `${профиль}, день ${d}: вес или ступень изменились без участия человека`);
+      нагрузкаБыла = слепок;
+    }
     st.sessions.push(session);
     журнал.push({ d, тип: 'сделал', pos, dayId: деньПрограммы.id, мин });
   }
@@ -139,10 +153,13 @@ function прогон(pid, профиль, seed = 7) {
       баг(pid, 'потерянный день', `${профиль}: пропустил «${пр.dayId}» в день ${пр.d}, назавтра выдали «${завтра.dayId}»`);
     }
   }
-  // прогрессия
+  // прогрессия: приложение её предлагает, а не делает
   const шаги = Object.entries(st.progress).flatMap(([ex, p]) => Object.entries(p.steps || {}).map(([tr, v]) => ({ ex, tr, v })));
-  if (профиль === 'слишком легко' && сделано.length > 6 && шаги.every(x => x.v === 0)) {
-    баг(pid, 'прогрессия', 'слишком легко: за месяц ни одна лестница не сдвинулась');
+  if (профиль === 'слишком легко' && сделано.length > 6 && предложений === 0) {
+    баг(pid, 'прогрессия', 'слишком легко: за месяц ни одного предложения прибавить');
+  }
+  if (профиль === 'тяжело идёт' && сделано.length > 6 && предложений === 0) {
+    баг(pid, 'прогрессия', 'тяжело идёт: за месяц ни одного предложения убавить');
   }
   if (профиль === 'идеальный') {
     // только полные недели: в 30 днях последняя «неделя» — это два дня

@@ -1,6 +1,6 @@
 // Движок прогрессии: что делать сегодня и что менять после тренировки.
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=46';
-import { nextBell, prevBell, todayISO } from './store.js?v=46';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=47';
+import { nextBell, prevBell, todayISO } from './store.js?v=47';
 
 const DAY = 86400000;
 
@@ -635,6 +635,15 @@ function stepAfterWeightDrop(track) {
   return свои[Math.floor((свои.length - 1) / 2)].i;
 }
 
+// Разбор тренировки. Приложение НИЧЕГО не меняет само: считает, замечает
+// и предлагает. Нагрузку двигает человек — в «Ещё → Рабочие веса и ступени»
+// или кнопкой прямо в отчёте после тренировки.
+//
+// Почему так. Прогрессия — это не свойство календаря, а готовность человека,
+// и она приходит не сразу. Автоматика же исходила из обратного: три подхода
+// подряд «нормально» — значит пора прибавить. На двугиревой работе цена
+// ошибки особенно велика: шаг между парами это плюс треть веса, а 15 махов
+// парой 24 — это 48 кг в каждом повторе.
 export function applySession(state, session) {
   const changes = [];
   const deload = session.deload;
@@ -642,108 +651,89 @@ export function applySession(state, session) {
     const p = state.progress[entry.exId];
     const track = TRACKS[entry.trackId];
     if (!p || !track) continue;
-    // Ступень своя у каждой лестницы, вес общий у упражнения.
     if (!p.steps) p.steps = {};
     if (p.steps[entry.trackId] === undefined) p.steps[entry.trackId] = clamp(p.step ?? 0, 0, track.steps.length - 1);
-    const readStep = () => p.steps[entry.trackId];
-    const writeStep = (v) => { p.steps[entry.trackId] = v; p.step = v; };
+    const step = p.steps[entry.trackId];
     const ex = EXERCISES[entry.exId];
     const rpe = entry.rpe ?? 7;
     const last = Math.min(track.steps.length - 1, entry.maxStep ?? Infinity);
 
     if (deload) {
-      changes.push({ exId: entry.exId, type: 'hold', text: `${ex.short}: разгрузочная неделя, шаг не меняем` });
+      changes.push({ exId: entry.exId, type: 'hold', text: `${ex.short}: разгрузочная неделя, ничего не трогаем` });
       continue;
     }
 
-    // Шаг вперёд с промежуточными ступенями; вес трогаем только с последней
-    // и только на один размер за раз — тут спешить нельзя.
-    const advance = (n) => {
-      const target = readStep() + n;
-      if (target <= last) { writeStep(target); return 'step'; }
-      if (readStep() < last) { writeStep(last); return 'step'; }
+    // Куда шагнуть, если человек решит прибавить. Ничего не записывает.
+    const кудаДальше = (n) => {
+      const target = step + n;
+      if (target <= last) return { kind: 'step', step: target, weight: p.weight };
+      if (step < last) return { kind: 'step', step: last, weight: p.weight };
       const nb = nextBell(p.weight, state.settings.bells);
-      if (!nb) return 'max';
-      p.weight = nb;
-      writeStep(track.reset ?? 0);
-      return 'weight';
+      if (!nb) return { kind: 'max' };
+      return { kind: 'weight', step: track.reset ?? 0, weight: nb };
     };
+    const предложить = (тип, п, текст) => changes.push({
+      exId: entry.exId, trackId: entry.trackId, type: тип, text: текст,
+      apply: п.kind === 'max' ? null : { exId: entry.exId, trackId: entry.trackId, step: п.step, weight: п.weight }
+    });
 
-    // ── Нагрузка была явно мимо: правим сразу, не копя подтверждения ──
-    const jump = deload ? null : stepJump(rpe, entry.complete);
-    if (jump && readStep() < last) {
-      const before = readStep();
-      advance(jump);
+    // Нагрузка была явно мала — говорим сразу, не копя подтверждения
+    const jump = stepJump(rpe, entry.complete);
+    if (jump && step < last) {
       p.wins = 0; p.fails = 0;
-      changes.push({
-        exId: entry.exId, type: 'step-up',
-        text: `${ex.short}: слишком легко — сразу +${readStep() - before} ${readStep() - before === 1 ? 'ступень' : 'ступени'} → ${stepText(entry.trackId, readStep())}`
-      });
+      const н = кудаДальше(jump);
+      предложить('suggest-up', н, `${ex.short}: было совсем легко. Если готов — ${stepText(entry.trackId, н.step)}`);
       continue;
     }
 
-    // Короткая тренировка — это факт, а не провал. Раньше любая недоделанная
-    // сессия шла в провалы, и две подряд откатывали ступень назад: сделал три
-    // круга из шести после ковра — программа решала, что нагрузка велика,
-    // и убавляла её. Теперь недоделанное просто записывается как есть.
-    // Сигналом «тяжело» остаётся оценка самочувствия, а не число подходов:
-    // ушёл раньше, но шло нормально — держим ступень; было очень тяжело —
-    // это провал независимо от того, доделал или нет.
+    // Короткая тренировка — это факт, а не провал. Сигналом «тяжело» служит
+    // оценка самочувствия, а не число сделанных подходов.
     if (entry.complete && rpe <= 7) {
-      // RPE 6 — комфортно, засчитываем как две удачных: до потолка ещё далеко
       p.wins = (p.wins || 0) + (rpe <= 6 ? 2 : 1);
       p.fails = 0;
     } else if (rpe >= 9) {
       p.fails = (p.fails || 0) + 1;
       p.wins = 0;
     } else {
-      const текст = entry.complete
-        ? `${ex.short}: закрепляем, ещё разок так же`
-        : `${ex.short}: записал сколько получилось — ступень не меняю, идём дальше`;
-      changes.push({ exId: entry.exId, type: 'hold', text: текст });
+      changes.push({ exId: entry.exId, type: 'hold',
+        text: entry.complete ? `${ex.short}: записал` : `${ex.short}: записал сколько получилось` });
       continue;
     }
 
-    // Подтверждения меряем неделями, а не тренировками: три занятия
-    // в неделю — эталон, реже — пропорционально меньше подтверждений.
-    // Трек может отказаться от пересчёта, если его темп задан программой.
+    // Сколько спокойных тренировок подряд считаем поводом ПРЕДЛОЖИТЬ прибавку.
+    // Реже занимаешься — меньше подтверждений, чтобы разговор о прибавке
+    // заходил примерно раз в тот же срок, а не раз в полгода.
     const base = track.winsNeeded ?? 2;
-    const perWeek = entry.perCycle && entry.cycleDays
-      ? (entry.perCycle * 7) / entry.cycleDays
-      : 3;
-    const winsNeeded = track.fixedPace ? base
-      : Math.max(1, Math.round(base * Math.min(perWeek, 3) / 3));
+    const perWeek = entry.perCycle && entry.cycleDays ? (entry.perCycle * 7) / entry.cycleDays : 3;
+    const winsNeeded = Math.max(2, track.fixedPace ? base : Math.round(base * Math.min(perWeek, 3) / 3));
+
     if (p.wins >= winsNeeded) {
-      p.wins = 0;
-      const res = advance(1);
-      if (res === 'weight') changes.push({ exId: entry.exId, type: 'weight-up', text: `${ex.short}: гиря ${p.weight} кг! Объём сбросили, начинаем заново` });
-      else if (res === 'max') changes.push({ exId: entry.exId, type: 'max', text: `${ex.short}: потолок по твоим гирям. Нужна следующая гиря` });
-      else changes.push({ exId: entry.exId, type: 'step-up', text: `${ex.short}: шаг вперёд → ${stepText(entry.trackId, readStep())}` });
+      const н = кудаДальше(1);
+      if (н.kind === 'max') {
+        changes.push({ exId: entry.exId, type: 'max', text: `${ex.short}: потолок по твоим гирям. Дальше нужна гиря тяжелее` });
+      } else if (н.kind === 'weight') {
+        предложить('suggest-up', н, `${ex.short}: лестница пройдена, идёт спокойно. Если готов — гиря ${н.weight} кг и объём заново`);
+      } else {
+        предложить('suggest-up', н, `${ex.short}: идёт спокойно ${p.wins} ${p.wins < 5 ? 'тренировки' : 'тренировок'} подряд. Если готов — ${stepText(entry.trackId, н.step)}`);
+      }
     } else if (p.fails >= 2) {
       p.fails = 0;
-      if (readStep() > 0) {
-        writeStep(readStep() - 1);
-        changes.push({ exId: entry.exId, type: 'step-down', text: `${ex.short}: откатили на шаг назад, догоним` });
+      if (step > 0) {
+        предложить('suggest-down', { kind: 'step', step: step - 1, weight: p.weight },
+          `${ex.short}: тяжело второй раз подряд. Можно вернуться на ${stepText(entry.trackId, step - 1)}`);
       } else {
-        // Смену гири приложение только предлагает. Раньше оно её назначало:
-        // две тренировки, отмеченные как «очень тяжело», и человек, работавший
-        // парой 24, обнаруживал в плане пару 16 — минус треть веса, без спроса
-        // и без объяснения. Объём внутри лестницы двигать автоматически можно,
-        // это мелкий и обратимый шаг. Гиря — решение человека.
         const pb = prevBell(p.weight, state.settings.bells);
         const нуженПара = DOUBLE_EX(entry.exId) || PROGRAMS[state.settings.programId]?.needsPair;
         const естьПара = !нуженПара || (state.settings.pairs || []).includes(pb);
         if (pb && естьПара) {
-          changes.push({ exId: entry.exId, type: 'suggest-down',
-            text: `${ex.short}: тяжело второй раз подряд на самой лёгкой ступени. Если так и дальше — возьми ${нуженПара ? 'пару ' : ''}${pb} кг. Вес не трогаю, меняется в «Ещё → Рабочие веса и ступени»` });
+          предложить('suggest-down', { kind: 'weight', step, weight: pb },
+            `${ex.short}: тяжело второй раз подряд на самой лёгкой ступени. Можно взять ${нуженПара ? 'пару ' : ''}${pb} кг`);
         } else {
-          changes.push({ exId: entry.exId, type: 'hold', text: `${ex.short}: держим как есть` });
+          changes.push({ exId: entry.exId, type: 'hold', text: `${ex.short}: тяжело, но легче уже некуда — держим` });
         }
       }
     } else {
-      const need = winsNeeded - (p.wins || 0);
-      if (p.wins > 0) changes.push({ exId: entry.exId, type: 'progress', text: `${ex.short}: ещё ${need} ${need === 1 ? 'такая тренировка' : 'такие тренировки'} — и шаг вперёд` });
-      else changes.push({ exId: entry.exId, type: 'hold', text: `${ex.short}: повторим то же самое` });
+      changes.push({ exId: entry.exId, type: 'hold', text: `${ex.short}: записал` });
     }
   }
   return changes;
@@ -818,7 +808,7 @@ export function streak(sessions, dateISO = todayISO()) {
 // заканчиваются и когда упрёшься в отсутствующее железо. Обе всплывают
 // внезапно — через полтора месяца работы, когда менять что-то уже поздно.
 
-const DOUBLE_EX = (exId) => exId.startsWith('dbl_') || exId === 'swing_2kb';
+const DOUBLE_EX = (exId) => !!EXERCISES[exId]?.double;
 
 export function blockStatus(state, dateISO = todayISO()) {
   const prog = PROGRAMS[state.settings.programId];

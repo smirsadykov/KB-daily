@@ -73,7 +73,7 @@ export const EXERCISES = {
   swing_2kb: {
     name: 'Свинг двумя гирями',
     short: 'Свинг 2г',
-    kind: 'ballistic', pattern: 'hinge', side: 'both',
+    double: true, kind: 'ballistic', pattern: 'hinge', side: 'both',
     load: 'ballistic',
     cues: [
       'По гире в каждой руке. Общий вес вдвое больше — стойка чуть шире, чтобы гири проходили между ног.',
@@ -150,7 +150,7 @@ export const EXERCISES = {
   dbl_clean_press: {
     name: 'Двойной заброс + жим',
     short: 'Двойной жим',
-    kind: 'grind', pattern: 'press', side: 'both',
+    double: true, kind: 'grind', pattern: 'press', side: 'both',
     load: 'grind',
     cues: [
       'Две гири. Заброс в стойку, потом жим обеих сразу.',
@@ -188,7 +188,7 @@ export const EXERCISES = {
   dbl_front_squat: {
     name: 'Двойной фронтальный присед',
     short: 'Двойной присед',
-    kind: 'grind', pattern: 'squat', side: 'both',
+    double: true, kind: 'grind', pattern: 'squat', side: 'both',
     load: 'grind',
     cues: [
       'Две гири в стойке на предплечьях, локти прижаты к рёбрам.',
@@ -199,7 +199,7 @@ export const EXERCISES = {
   dbl_row: {
     name: 'Двойная тяга в наклоне',
     short: 'Двойная тяга',
-    kind: 'grind', pattern: 'pull', side: 'both',
+    double: true, kind: 'grind', pattern: 'pull', side: 'both',
     load: 'grind',
     cues: [
       'Две гири, наклон корпуса, спина параллельно полу и нейтральная.',
@@ -227,7 +227,7 @@ export const EXERCISES = {
   ab_pair: {
     name: 'Махи + трастеры',
     short: 'Махи+трастер',
-    kind: 'grind', pattern: 'complex', covers: ['hinge', 'squat', 'press'], side: 'both',
+    double: true, kind: 'grind', pattern: 'complex', covers: ['hinge', 'squat', 'press'], side: 'both',
     load: 'ballistic',
     cues: [
       'Двумя гирями. Два движения чередуются каждую минуту: минута махов, минута трастеров, и так шесть кругов.',
