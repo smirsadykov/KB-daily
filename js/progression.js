@@ -1,6 +1,6 @@
 // Движок прогрессии: что делать сегодня и что менять после тренировки.
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=45';
-import { nextBell, prevBell, todayISO } from './store.js?v=45';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=46';
+import { nextBell, prevBell, todayISO } from './store.js?v=46';
 
 const DAY = 86400000;
 
@@ -725,11 +725,17 @@ export function applySession(state, session) {
         writeStep(readStep() - 1);
         changes.push({ exId: entry.exId, type: 'step-down', text: `${ex.short}: откатили на шаг назад, догоним` });
       } else {
+        // Смену гири приложение только предлагает. Раньше оно её назначало:
+        // две тренировки, отмеченные как «очень тяжело», и человек, работавший
+        // парой 24, обнаруживал в плане пару 16 — минус треть веса, без спроса
+        // и без объяснения. Объём внутри лестницы двигать автоматически можно,
+        // это мелкий и обратимый шаг. Гиря — решение человека.
         const pb = prevBell(p.weight, state.settings.bells);
-        if (pb) {
-          p.weight = pb;
-          writeStep(stepAfterWeightDrop(track));
-          changes.push({ exId: entry.exId, type: 'weight-down', text: `${ex.short}: вернулись на ${pb} кг` });
+        const нуженПара = DOUBLE_EX(entry.exId) || PROGRAMS[state.settings.programId]?.needsPair;
+        const естьПара = !нуженПара || (state.settings.pairs || []).includes(pb);
+        if (pb && естьПара) {
+          changes.push({ exId: entry.exId, type: 'suggest-down',
+            text: `${ex.short}: тяжело второй раз подряд на самой лёгкой ступени. Если так и дальше — возьми ${нуженПара ? 'пару ' : ''}${pb} кг. Вес не трогаю, меняется в «Ещё → Рабочие веса и ступени»` });
         } else {
           changes.push({ exId: entry.exId, type: 'hold', text: `${ex.short}: держим как есть` });
         }

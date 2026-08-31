@@ -1,17 +1,17 @@
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=45';
-import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON } from './store.js?v=45';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=46';
+import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON } from './store.js?v=46';
 import {
   planFor, applySession, summarizeItem, readinessMult, readinessLabel,
   waveIndex, weekIndex, wave, isDeload, acwr, streak, sessionLoad, tonnage, nextStepText, stepText, dayIndex,
   estimateMinutes, pairRealRest, paceFactor, blockStatus, nextBlockSuggestions, commitCycle
-} from './progression.js?v=45';
-import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=45';
-import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=45';
+} from './progression.js?v=46';
+import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=46';
+import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=46';
 
 // byId должен видеть и свои записи пользователя, поэтому оборачиваем
 const byId = (id) => suppById(id, S);
-import { timer, fmt, unlockAudio } from './timer.js?v=45';
-import { barChart, gauge } from './charts.js?v=45';
+import { timer, fmt, unlockAudio } from './timer.js?v=46';
+import { barChart, gauge } from './charts.js?v=46';
 
 // ── Мелкие помощники ─────────────────────────────────────────────────────────
 const $ = (s, r = document) => r.querySelector(s);
@@ -1600,7 +1600,7 @@ function showResult(session, changes) {
     <p class="muted center small">${tonnage(session).toLocaleString('ru-RU')} кг поднято · ${session.durationMin} мин · нагрузка ${sessionLoad(session)}</p>
     <div class="card mt">
       ${changes.map(c => `<div class="row" style="padding:6px 0;gap:8px">
-        <span>${c.type === 'weight-up' ? '⬆️' : c.type === 'step-up' ? '▲' : c.type === 'step-down' || c.type === 'weight-down' ? '▼' : '•'}</span>
+        <span>${c.type === 'weight-up' ? '⬆️' : c.type === 'step-up' ? '▲' : c.type === 'suggest-down' ? '💡' : c.type === 'step-down' || c.type === 'weight-down' ? '▼' : '•'}</span>
         <span class="grow small">${h(c.text)}</span></div>`).join('')}
     </div>
     <button class="btn" data-act="close-sheet">Готово</button>`);
