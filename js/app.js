@@ -1,17 +1,17 @@
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=48';
-import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON } from './store.js?v=48';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=49';
+import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON } from './store.js?v=49';
 import {
   planFor, applySession, summarizeItem, readinessMult, readinessLabel,
   waveIndex, weekIndex, wave, isDeload, acwr, streak, sessionLoad, tonnage, nextStepText, stepText, dayIndex,
   estimateMinutes, pairRealRest, paceFactor, blockStatus, nextBlockSuggestions, commitCycle
-} from './progression.js?v=48';
-import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=48';
-import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=48';
+} from './progression.js?v=49';
+import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=49';
+import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=49';
 
 // byId должен видеть и свои записи пользователя, поэтому оборачиваем
 const byId = (id) => suppById(id, S);
-import { timer, fmt, unlockAudio } from './timer.js?v=48';
-import { barChart, gauge } from './charts.js?v=48';
+import { timer, fmt, unlockAudio } from './timer.js?v=49';
+import { barChart, gauge } from './charts.js?v=49';
 
 // ── Мелкие помощники ─────────────────────────────────────────────────────────
 const $ = (s, r = document) => r.querySelector(s);
@@ -364,17 +364,23 @@ function viewReadiness(preview, wave, dayOverride = null) {
 }
 
 
-// Что будет в ближайшие дни. Без этого промежуточный день цикла выглядит так,
-// будто программа выдала не то, что обещала названием: выбрал «Броневой
-// комплекс», а на экране махи с переносками.
+// Весь цикл программы одной строкой, с отметкой, где ты сейчас. Раньше был
+// только намёк «дальше: то-то», и вопрос «почему сегодня отдых» оставался без
+// ответа: расписание было спрятано внутри программы и на экран не попадало.
 function nextDaysHint(plan) {
   const prog = PROGRAMS[plan.programId];
-  const upcoming = [];
-  for (let k = 1; k <= 3; k++) {
-    const d = prog.days[(plan.dayIndex + k) % prog.days.length];
-    upcoming.push(d.focus === 'rest' ? 'отдых' : d.name.replace(/^[^·]+ · /, '').toLowerCase());
-  }
-  return `<div class="muted small" style="margin-top:8px;opacity:.8">Дальше: ${h(upcoming.join(' → '))}</div>`;
+  const цепочка = prog.days.map((d, i) => {
+    const метка = d.focus === 'rest' ? '·' : h(d.id);
+    const сейчас = i === plan.dayIndex;
+    return `<span style="${сейчас
+      ? 'color:var(--accent);font-weight:700;border-bottom:2px solid var(--accent);padding-bottom:1px'
+      : 'opacity:.5'}">${метка}</span>`;
+  }).join('<span style="opacity:.25"> </span>');
+  const рабочих = prog.days.filter(d => d.focus !== 'rest').length;
+  return `<div class="muted small" style="margin-top:10px">
+    <div style="font-family:ui-monospace,monospace;letter-spacing:2px;font-size:15px">${цепочка}</div>
+    <div style="margin-top:4px;opacity:.7">цикл ${prog.days.length} ${prog.days.length < 5 ? 'дня' : 'дней'}: ${рабочих} ${рабочих < 5 ? 'тренировки' : 'тренировок'}, точка — день отдыха</div>
+  </div>`;
 }
 
 
@@ -1087,6 +1093,16 @@ function viewSettings() {
       </details>` : ''}
     </div>`).join('')}
 
+  <div class="card">
+    <div class="row between">
+      <div class="grow">
+        <div class="sw-label">Начать цикл заново</div>
+        <div class="sw-hint">Сегодняшний день станет первым днём программы. Веса и ступени не тронутся — сдвинется только расписание.</div>
+      </div>
+      <button class="btn ghost sm" data-act="resetcycle">Выровнять</button>
+    </div>
+  </div>
+
   <h3>Уровень</h3>
   <div class="card">
     <div class="row between">
@@ -1444,6 +1460,13 @@ const actions = {
     });
     el.outerHTML = '<div class="muted small mt">Применил</div>';
     toast('Нагрузка обновлена');
+  },
+  resetcycle() {
+    update(s => { s.settings.cyclePos = 0; s.settings.cycleDate = todayISO(); s.today = null; });
+    render();
+    const prog = PROGRAMS[S.settings.programId];
+    const первый = prog.days[0];
+    toast(первый.focus === 'rest' ? 'Цикл с начала: сегодня отдых' : `Цикл с начала: сегодня ${первый.name}`);
   },
   deload(el) {
     update(s => { s.settings.deloadEvery = +el.dataset.v; s.today = null; });

@@ -1,6 +1,6 @@
 // Движок прогрессии: что делать сегодня и что менять после тренировки.
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=48';
-import { nextBell, prevBell, todayISO } from './store.js?v=48';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=49';
+import { nextBell, prevBell, todayISO } from './store.js?v=49';
 
 const DAY = 86400000;
 
