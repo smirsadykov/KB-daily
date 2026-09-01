@@ -709,6 +709,31 @@ console.log('\n=== 15. Волна не раздувает чужой прото�
     }
   }
 
+  // (б6) Программа, объявившая веса относительно набора пар, обязана разводить
+  //      дни по весу при любом наборе. Раньше вес выводился из общего правила
+  //      «вторая гиря снизу», а оно смотрит на все гири, не на пары: у человека
+  //      с парами 24 и 32 оба дня выходили на одной и той же паре.
+  for (const [pid, prog] of Object.entries(PROGRAMS)) {
+    const объявлены = prog.days.some(d => (d.slots || []).some(sl => sl.bell));
+    if (!объявлены) continue;
+    for (const [гири, пары] of [[[16, 24, 32], [16, 24]], [[16, 20, 24, 28, 32], [20, 28]],
+                                [[16, 24, 32], [24, 32]], [[12, 16, 20, 24], [16, 20]]]) {
+      const st = mkState({ settings: { programId: pid, bells: гири, pairs: пары } });
+      const п = [...пары].sort((a, b) => a - b);
+      for (let d = 0; d < prog.days.length; d++) {
+        const plan = planFor(st, today, null, d);
+        if (plan.isRest) continue;
+        plan.items.forEach((it, i) => {
+          const sl = (prog.days[d].slots || [])[i];
+          if (!sl?.bell) return;
+          const ждём = sl.bell === 'next' ? (п[1] ?? п[0]) : п[0];
+          ok(it.weight === ждём,
+             `${pid}/д${d} при парах ${пары.join('+')}: ${it.exId} получил ${it.weight}, а объявлено «${sl.bell}» = ${ждём}`);
+        });
+      }
+    }
+  }
+
   // (в) постепенная замена гири в минутном режиме делит тяжёлые круги поровну
   for (const [pid, prog] of Object.entries(PROGRAMS)) {
     for (const step of [0, 4, 8, 10, 11]) {

@@ -1,17 +1,17 @@
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=56';
-import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON, restartProgram } from './store.js?v=56';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=57';
+import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON, restartProgram } from './store.js?v=57';
 import {
   planFor, applySession, summarizeItem, readinessMult, readinessLabel,
   waveIndex, weekIndex, wave, isDeload, acwr, streak, sessionLoad, tonnage, nextStepText, stepText, dayIndex,
   estimateMinutes, pairRealRest, paceFactor, blockStatus, nextBlockSuggestions, commitCycle
-} from './progression.js?v=56';
-import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=56';
-import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=56';
+} from './progression.js?v=57';
+import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=57';
+import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=57';
 
 // byId должен видеть и свои записи пользователя, поэтому оборачиваем
 const byId = (id) => suppById(id, S);
-import { timer, fmt, unlockAudio } from './timer.js?v=56';
-import { barChart, gauge } from './charts.js?v=56';
+import { timer, fmt, unlockAudio } from './timer.js?v=57';
+import { barChart, gauge } from './charts.js?v=57';
 
 // ── Мелкие помощники ─────────────────────────────────────────────────────────
 // Версия берётся из адреса самого модуля: она не может разойтись с тем,
@@ -322,7 +322,9 @@ function viewReadiness(preview, wave, dayOverride = null) {
       <span class="pill ${preview.deload ? 'warn' : 'accent'}">${preview.deload ? 'разгрузка' : wave.name.split('·')[1]?.trim() || ''}</span>
     </div>
     <p class="muted small mt mb0">${h(wave.hint)}</p>
-    ${nextDaysHint(preview)}
+    ${withR.items?.some(x => x.малоПар) ? `
+    <div class="muted small" style="margin-top:6px;color:var(--warn)">У тебя отмечена одна пара гирь, а программа разводит дни по весу: A на лёгкой паре, B на следующей. Пока оба дня идут на одной — отметь вторую пару в «Ещё → Каких гирь по две».</div>` : ''}
+  ${nextDaysHint(preview)}
   </div>
 
   <h3>Как ты сегодня</h3>
@@ -362,7 +364,9 @@ function viewReadiness(preview, wave, dayOverride = null) {
       </div>
       <div class="row" style="gap:6px;align-items:baseline;margin-top:6px">
         <span class="muted small">${EXERCISES[it.exId]?.double ? 'пара ' + it.weight : it.weight + ' кг'}${partner ? ' и ' + (EXERCISES[withR.items[partner.b].exId]?.double ? 'пара ' + withR.items[partner.b].weight : withR.items[partner.b].weight + ' кг') : ''}</span>
-        <button class="lnk small" data-act="goweights">поменять</button>
+        ${it.весЗадан
+          ? '<span class="muted small" style="opacity:.7">— вес задан программой</span>'
+          : '<button class="lnk small" data-act="goweights">поменять</button>'}
       </div>
     </div>`;
   }).join('')}
@@ -1154,6 +1158,7 @@ function viewSettings() {
         // Ступень показываем только там, где её действительно можно выбрать.
         // Если лестница прибита слотом (fixedStep) или в ней одна ступень —
         // список был живой кнопкой, которая ничего не делает.
+        const весЗадан = sl.bell !== undefined && (S.settings.pairs || []).length > 0;
         const прибита = sl.fixedStep !== undefined;
         const cur = прибита ? sl.fixedStep : (p.steps?.[sl.track] ?? p.step ?? 0);
         const естьВыбор = !прибита && tr.steps.length > 1;
@@ -1162,9 +1167,11 @@ function viewSettings() {
           <div class="row between"${естьВыбор ? ' style="margin-bottom:8px"' : ''}>
             <div class="grow"><div class="sw-label">${h(EXERCISES[sl.ex].name)}</div>
             <div class="sw-hint">${h(stepText(sl.track, cur))}</div></div>
-            <select data-act="weight" data-ex="${sl.ex}" style="width:130px;min-height:42px">
+            ${весЗадан
+              ? `<span class="muted small" style="text-align:right;max-width:150px">вес задан программой: ${sl.bell === 'next' ? 'следующая пара' : 'лёгкая пара'}</span>`
+              : `<select data-act="weight" data-ex="${sl.ex}" style="width:130px;min-height:42px">
               ${S.settings.bells.map(b => `<option value="${b}" ${b === p.weight ? 'selected' : ''}>${EXERCISES[sl.ex].double ? `пара ${b}` : `${b} кг`}</option>`).join('')}
-            </select>
+            </select>`}
           </div>
           ${естьВыбор ? `
           <select data-act="setstep" data-ex="${sl.ex}" data-track="${sl.track}" style="min-height:42px">

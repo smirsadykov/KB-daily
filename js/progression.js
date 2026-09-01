@@ -1,6 +1,6 @@
 // Движок прогрессии: что делать сегодня и что менять после тренировки.
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=56';
-import { nextBell, prevBell, todayISO } from './store.js?v=56';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=57';
+import { nextBell, prevBell, todayISO } from './store.js?v=57';
 
 const DAY = 86400000;
 
@@ -490,9 +490,19 @@ export function planFor(state, dateISO = todayISO(), readiness = null, dayOverri
     const pairs = state.settings.pairs || [];
     let exId = slot.ex;
     let pairWeight = null;
+    let весЗадан = false, малоПар = false;
     if (slot.needsPair) {
       if (!pairs.length) exId = slot.fallback;
-      else {
+      else if (slot.bell) {
+        // Программа объявляет вес относительно набора пар, а не в килограммах:
+        // «лёгкая» и «следующая». Раньше вес выводился из общего правила
+        // «вторая гиря снизу», а оно смотрит на все гири, не на пары — и у
+        // человека с парами 24 и 32 оба дня выходили на одной и той же паре.
+        const п = [...pairs].sort((a, b) => a - b);
+        pairWeight = slot.bell === 'next' ? (п[1] ?? п[0]) : п[0];
+        весЗадан = true;
+        малоПар = slot.bell === 'next' && п.length < 2;
+      } else {
         const p0 = state.progress[slot.ex];
         pairWeight = pairs.includes(p0?.weight)
           ? p0.weight
@@ -525,6 +535,8 @@ export function planFor(state, dateISO = todayISO(), readiness = null, dayOverri
     item.exId = exId;
     item.trackId = slot.track;
     item.maxStep = slot.maxStep;
+    item.весЗадан = весЗадан;
+    item.малоПар = малоПар;
     item.perCycle = perCycle[slot.ex + '|' + slot.track] || 1;
     item.cycleDays = prog.days.length;
     item.kind = track.kind;

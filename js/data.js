@@ -934,6 +934,8 @@ export const PROGRAMS = {
     origin: 'по мотивам программ «The Giant» Джеффа Нойперта. Из оригинала: единственное упражнение — двойной заброс с жимом, три раза в неделю по 20–30 минут, четырёхнедельные блоки, отсчёт от веса, который жмёшь примерно на 10 раз. Конкретные ступени объёма — наш выбор',
     warn: 'Нужна ПАРА гирь одного веса — без неё программа не работает. Тяжело сочетается с борьбой и любой работой на плечевой пояс: жимовой объём здесь высокий.',
     needsPair: true,
+    // bell в слотах: день A идёт на лёгкой паре, день B на следующей — так
+    // в источнике. Вес выводится из того, какие пары есть, а не выбирается руками.
     gives: [
       'Прямой рост жима и мышц плечевого пояса — то, чего не даёт комплекс ABC.',
       'Предельно простая: одно движение, три раза в неделю.',
@@ -1223,30 +1225,30 @@ export const PROGRAMS = {
     ],
     days: [
       { id: 'A', name: 'A · сила', focus: 'grind', slots: [
-        { ex: 'dbl_front_squat', track: 'ab_squat', needsPair: true, fallback: 'goblet_squat' },
-        { ex: 'dbl_clean_press', track: 'ab_press', needsPair: true, fallback: 'clean_press' },
-        { ex: 'dbl_row', track: 'ab_row', needsPair: true, fallback: 'row' }
+        { ex: 'dbl_front_squat', track: 'ab_squat', needsPair: true, bell: 'light', fallback: 'goblet_squat' },
+        { ex: 'dbl_clean_press', track: 'ab_press', needsPair: true, bell: 'light', fallback: 'clean_press' },
+        { ex: 'dbl_row', track: 'ab_row', needsPair: true, bell: 'light', fallback: 'row' }
       ]},
       { id: 'R', name: 'Отдых', focus: 'rest', slots: [] },
-      { id: 'B', name: 'B · кондиционка', focus: 'ballistic', slots: [{ ex: 'ab_pair', track: 'ab_emom', needsPair: true, fallback: 'ab_pair_single' }] },
+      { id: 'B', name: 'B · кондиционка', focus: 'ballistic', slots: [{ ex: 'ab_pair', track: 'ab_emom', needsPair: true, bell: 'next', fallback: 'ab_pair_single' }] },
       { id: 'R', name: 'Отдых', focus: 'rest', slots: [] },
       { id: 'A', name: 'A · сила', focus: 'grind', slots: [
-        { ex: 'dbl_front_squat', track: 'ab_squat', needsPair: true, fallback: 'goblet_squat' },
-        { ex: 'dbl_clean_press', track: 'ab_press', needsPair: true, fallback: 'clean_press' },
-        { ex: 'dbl_row', track: 'ab_row', needsPair: true, fallback: 'row' }
+        { ex: 'dbl_front_squat', track: 'ab_squat', needsPair: true, bell: 'light', fallback: 'goblet_squat' },
+        { ex: 'dbl_clean_press', track: 'ab_press', needsPair: true, bell: 'light', fallback: 'clean_press' },
+        { ex: 'dbl_row', track: 'ab_row', needsPair: true, bell: 'light', fallback: 'row' }
       ]},
       { id: 'R', name: 'Отдых', focus: 'rest', slots: [] },
       { id: 'R', name: 'Отдых', focus: 'rest', slots: [] },
       // вторая неделя начинается с B — так расписание само сдвигается
-      { id: 'B', name: 'B · кондиционка', focus: 'ballistic', slots: [{ ex: 'ab_pair', track: 'ab_emom', needsPair: true, fallback: 'ab_pair_single' }] },
+      { id: 'B', name: 'B · кондиционка', focus: 'ballistic', slots: [{ ex: 'ab_pair', track: 'ab_emom', needsPair: true, bell: 'next', fallback: 'ab_pair_single' }] },
       { id: 'R', name: 'Отдых', focus: 'rest', slots: [] },
       { id: 'A', name: 'A · сила', focus: 'grind', slots: [
-        { ex: 'dbl_front_squat', track: 'ab_squat', needsPair: true, fallback: 'goblet_squat' },
-        { ex: 'dbl_clean_press', track: 'ab_press', needsPair: true, fallback: 'clean_press' },
-        { ex: 'dbl_row', track: 'ab_row', needsPair: true, fallback: 'row' }
+        { ex: 'dbl_front_squat', track: 'ab_squat', needsPair: true, bell: 'light', fallback: 'goblet_squat' },
+        { ex: 'dbl_clean_press', track: 'ab_press', needsPair: true, bell: 'light', fallback: 'clean_press' },
+        { ex: 'dbl_row', track: 'ab_row', needsPair: true, bell: 'light', fallback: 'row' }
       ]},
       { id: 'R', name: 'Отдых', focus: 'rest', slots: [] },
-      { id: 'B', name: 'B · кондиционка', focus: 'ballistic', slots: [{ ex: 'ab_pair', track: 'ab_emom', needsPair: true, fallback: 'ab_pair_single' }] },
+      { id: 'B', name: 'B · кондиционка', focus: 'ballistic', slots: [{ ex: 'ab_pair', track: 'ab_emom', needsPair: true, bell: 'next', fallback: 'ab_pair_single' }] },
       { id: 'R', name: 'Отдых', focus: 'rest', slots: [] },
       { id: 'R', name: 'Отдых', focus: 'rest', slots: [] }
     ]
