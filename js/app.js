@@ -1,17 +1,17 @@
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=49';
-import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON } from './store.js?v=49';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=50';
+import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON } from './store.js?v=50';
 import {
   planFor, applySession, summarizeItem, readinessMult, readinessLabel,
   waveIndex, weekIndex, wave, isDeload, acwr, streak, sessionLoad, tonnage, nextStepText, stepText, dayIndex,
   estimateMinutes, pairRealRest, paceFactor, blockStatus, nextBlockSuggestions, commitCycle
-} from './progression.js?v=49';
-import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=49';
-import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=49';
+} from './progression.js?v=50';
+import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=50';
+import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=50';
 
 // byId должен видеть и свои записи пользователя, поэтому оборачиваем
 const byId = (id) => suppById(id, S);
-import { timer, fmt, unlockAudio } from './timer.js?v=49';
-import { barChart, gauge } from './charts.js?v=49';
+import { timer, fmt, unlockAudio } from './timer.js?v=50';
+import { barChart, gauge } from './charts.js?v=50';
 
 // ── Мелкие помощники ─────────────────────────────────────────────────────────
 const $ = (s, r = document) => r.querySelector(s);
@@ -1159,8 +1159,8 @@ function viewSettings() {
           <div class="row between" style="margin-bottom:8px">
             <div class="grow"><div class="sw-label">${h(EXERCISES[sl.ex].name)}</div>
             <div class="sw-hint">${h(stepText(sl.track, cur))}</div></div>
-            <select data-act="weight" data-ex="${sl.ex}" style="width:100px;min-height:42px">
-              ${S.settings.bells.map(b => `<option value="${b}" ${b === p.weight ? 'selected' : ''}>${b} кг</option>`).join('')}
+            <select data-act="weight" data-ex="${sl.ex}" style="width:130px;min-height:42px">
+              ${S.settings.bells.map(b => `<option value="${b}" ${b === p.weight ? 'selected' : ''}>${EXERCISES[sl.ex].double ? `пара ${b}` : `${b} кг`}</option>`).join('')}
             </select>
           </div>
           <select data-act="setstep" data-ex="${sl.ex}" data-track="${sl.track}" style="min-height:42px">
@@ -1170,7 +1170,7 @@ function viewSettings() {
       }
       return rows.join('');
     })()}
-    <p class="muted small mt mb0">Ступень можно поставить руками, если уровень уже есть и ждать прогрессии незачем. После перерыва бери на 2–3 ступени ниже своего прошлого максимума: тест меряет разовый результат, а программе нужен повторяемый. Смена веса сбрасывает ступень в начало — это защита от перегруза.</p>
+    <p class="muted small mt mb0">Ступень можно поставить руками, если уровень уже есть и ждать прогрессии незачем. После перерыва бери на 2–3 ступени ниже своего прошлого максимума: тест меряет разовый результат, а программе нужен повторяемый. Вес и ступень выбираются отдельно: сменил гирю — проверь, не высоко ли стоит ступень. Приложение само их не меняет.</p>
   </div>
 
   <h3>Настройки</h3>
@@ -1257,7 +1257,10 @@ const actions = {
   },
   weight(el) {
     const exId = el.dataset.ex;
-    update(s => { s.progress[exId].weight = +el.value; s.progress[exId].step = 0; s.progress[exId].wins = 0; s.progress[exId].fails = 0; s.today = null; });
+    // Ступень не трогаем: она выбирается отдельно, тут же ниже. Раньше код
+    // писал step = 0, но лестницы читаются из steps[трек], и сброс не работал —
+    // подпись обещала защиту, которой не было.
+    update(s => { s.progress[exId].weight = +el.value; s.progress[exId].wins = 0; s.progress[exId].fails = 0; s.today = null; });
     render();
     toast('Вес обновлён, объём начнём заново');
   },
