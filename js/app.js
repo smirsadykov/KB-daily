@@ -1,19 +1,23 @@
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=52';
-import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON, restartProgram } from './store.js?v=52';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=53';
+import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON, restartProgram } from './store.js?v=53';
 import {
   planFor, applySession, summarizeItem, readinessMult, readinessLabel,
   waveIndex, weekIndex, wave, isDeload, acwr, streak, sessionLoad, tonnage, nextStepText, stepText, dayIndex,
   estimateMinutes, pairRealRest, paceFactor, blockStatus, nextBlockSuggestions, commitCycle
-} from './progression.js?v=52';
-import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=52';
-import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=52';
+} from './progression.js?v=53';
+import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=53';
+import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=53';
 
 // byId должен видеть и свои записи пользователя, поэтому оборачиваем
 const byId = (id) => suppById(id, S);
-import { timer, fmt, unlockAudio } from './timer.js?v=52';
-import { barChart, gauge } from './charts.js?v=52';
+import { timer, fmt, unlockAudio } from './timer.js?v=53';
+import { barChart, gauge } from './charts.js?v=53';
 
 // ── Мелкие помощники ─────────────────────────────────────────────────────────
+// Версия берётся из адреса самого модуля: она не может разойтись с тем,
+// что реально загружено в браузере.
+const ВЕРСИЯ = (import.meta.url.match(/[?&]v=(\d+)/) || [null, '?'])[1];
+
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const h = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -356,9 +360,9 @@ function viewReadiness(preview, wave, dayOverride = null) {
         <div class="ex-meta">${h(it.scheme)}${partner ? ' и ' + h(withR.items[partner.b].scheme) : ''}</div></div>
         <span class="pill${partner ? ' accent' : ''}">${partner ? 'в паре' : 'шаг ' + (it.step + 1) + '/' + it.stepTotal}</span>
       </div>
-      <div class="row" style="gap:8px;align-items:center;margin-top:8px">
-        <span class="muted small">Гиря</span>
-        ${весВыбор(it)}${partner ? '<span class="muted small">и</span>' + весВыбор(withR.items[partner.b]) : ''}
+      <div class="row" style="gap:6px;align-items:baseline;margin-top:6px">
+        <span class="muted small">${EXERCISES[it.exId]?.double ? 'пара ' + it.weight : it.weight + ' кг'}${partner ? ' и ' + (EXERCISES[withR.items[partner.b].exId]?.double ? 'пара ' + withR.items[partner.b].weight : withR.items[partner.b].weight + ' кг') : ''}</span>
+        <button class="lnk small" data-act="goweights">поменять</button>
       </div>
     </div>`;
   }).join('')}
@@ -367,16 +371,6 @@ function viewReadiness(preview, wave, dayOverride = null) {
   ${mult <= 0.7 ? '<p class="muted small center mt">Плохой день — не повод пропускать. Объём я уже урезал, сделай что получится.</p>' : ''}`;
 }
 
-
-// Вес меняется прямо здесь, а не через три экрана настроек. Раньше человек
-// видел «16 кг» в плане, а поправить мог только в «Ещё → Рабочие веса
-// и ступени» — и не находил.
-function весВыбор(it) {
-  const дв = EXERCISES[it.exId]?.double;
-  return `<select data-act="weight" data-ex="${it.exId}" style="min-height:38px;width:${дв ? 120 : 96}px">
-    ${S.settings.bells.map(b => `<option value="${b}" ${b === it.weight ? 'selected' : ''}>${дв ? `пара ${b}` : `${b} кг`}</option>`).join('')}
-  </select>`;
-}
 
 // Весь цикл программы одной строкой, с отметкой, где ты сейчас. Раньше был
 // только намёк «дальше: то-то», и вопрос «почему сегодня отдых» оставался без
@@ -1145,7 +1139,7 @@ function viewSettings() {
     <p class="muted small mt mb0">Комплекс ABC в оригинале делается парой гирь одного веса. Если пары нет — приложение даёт версию под одну гирю: круг идёт на каждую сторону, работы столько же, но времени вдвое больше.</p>
   </div>
 
-  <h3>Рабочие веса и ступени</h3>
+  <h3 id="weights">Рабочие веса и ступени</h3>
   <div class="card">
     ${(() => {
       const seen = new Set();
@@ -1192,6 +1186,13 @@ function viewSettings() {
         <div><div class="sw-label">${label}</div><div class="sw-hint">${hint}</div></div>
         <button class="sw ${S.settings[k] ? 'on' : ''}" data-act="toggle" data-k="${k}"><i></i></button>
       </div>`).join('')}
+  </div>
+
+  <div class="card tight">
+    <div class="row between">
+      <span class="muted small">Версия приложения</span>
+      <span class="muted small">${h(ВЕРСИЯ)}</span>
+    </div>
   </div>
 
   <h3>Начать программу заново</h3>
@@ -1580,6 +1581,12 @@ const actions = {
   't-pause'() { timer.paused ? timer.resume() : timer.pause(); render(); },
   't-add'(el) { timer.addTime(+el.dataset.v); updateTimerScreen(); updateRestbar(); },
   't-stop'() { timer.onFinish = null; timer.stop(); render(); },
+  goweights() {
+    tab = 'settings';
+    render();
+    const el = document.getElementById('weights');
+    if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 1200); }
+  },
   'restart-block'() {
     const prog = PROGRAMS[S.settings.programId];
     restartProgram();

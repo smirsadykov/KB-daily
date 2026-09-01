@@ -288,3 +288,10 @@ label.field > span { display: block; font-size: 13px; color: var(--muted); margi
 .big-check { font-size: 40px; text-align: center; }
 hr.sep { border: none; border-top: 1px solid var(--line); margin: 16px 0; }
 a { color: var(--accent); }
+
+
+/* ссылка-подсказка внутри карточки: увести туда, где правится вес */
+.lnk { background: none; border: 0; color: var(--accent); padding: 0; cursor: pointer;
+       text-decoration: underline; text-underline-offset: 3px; font: inherit; }
+.flash { animation: flash 1.2s ease-out; border-radius: 8px; }
+@keyframes flash { 0% { background: color-mix(in srgb, var(--accent) 28%, transparent); } 100% { background: transparent; } }
