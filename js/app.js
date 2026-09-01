@@ -1,17 +1,17 @@
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=55';
-import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON, restartProgram } from './store.js?v=55';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=56';
+import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON, restartProgram } from './store.js?v=56';
 import {
   planFor, applySession, summarizeItem, readinessMult, readinessLabel,
   waveIndex, weekIndex, wave, isDeload, acwr, streak, sessionLoad, tonnage, nextStepText, stepText, dayIndex,
   estimateMinutes, pairRealRest, paceFactor, blockStatus, nextBlockSuggestions, commitCycle
-} from './progression.js?v=55';
-import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=55';
-import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=55';
+} from './progression.js?v=56';
+import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=56';
+import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=56';
 
 // byId должен видеть и свои записи пользователя, поэтому оборачиваем
 const byId = (id) => suppById(id, S);
-import { timer, fmt, unlockAudio } from './timer.js?v=55';
-import { barChart, gauge } from './charts.js?v=55';
+import { timer, fmt, unlockAudio } from './timer.js?v=56';
+import { barChart, gauge } from './charts.js?v=56';
 
 // ── Мелкие помощники ─────────────────────────────────────────────────────────
 // Версия берётся из адреса самого модуля: она не может разойтись с тем,
@@ -1151,19 +1151,25 @@ function viewSettings() {
         if (sl.ex === 'tgu' && !S.settings.tgu) continue;
         const p = S.progress[sl.ex]; const tr = TRACKS[sl.track];
         if (!p || !tr) continue;
-        const cur = p.steps?.[sl.track] ?? p.step ?? 0;
+        // Ступень показываем только там, где её действительно можно выбрать.
+        // Если лестница прибита слотом (fixedStep) или в ней одна ступень —
+        // список был живой кнопкой, которая ничего не делает.
+        const прибита = sl.fixedStep !== undefined;
+        const cur = прибита ? sl.fixedStep : (p.steps?.[sl.track] ?? p.step ?? 0);
+        const естьВыбор = !прибита && tr.steps.length > 1;
         rows.push(`
         <div style="padding:10px 0;border-bottom:1px solid var(--line)">
-          <div class="row between" style="margin-bottom:8px">
+          <div class="row between"${естьВыбор ? ' style="margin-bottom:8px"' : ''}>
             <div class="grow"><div class="sw-label">${h(EXERCISES[sl.ex].name)}</div>
             <div class="sw-hint">${h(stepText(sl.track, cur))}</div></div>
             <select data-act="weight" data-ex="${sl.ex}" style="width:130px;min-height:42px">
               ${S.settings.bells.map(b => `<option value="${b}" ${b === p.weight ? 'selected' : ''}>${EXERCISES[sl.ex].double ? `пара ${b}` : `${b} кг`}</option>`).join('')}
             </select>
           </div>
+          ${естьВыбор ? `
           <select data-act="setstep" data-ex="${sl.ex}" data-track="${sl.track}" style="min-height:42px">
             ${tr.steps.map((_, i) => `<option value="${i}" ${i === cur ? 'selected' : ''}>Ступень ${i + 1} из ${tr.steps.length} — ${h(stepText(sl.track, i))}</option>`).join('')}
-          </select>
+          </select>` : ''}
         </div>`);
       }
       return rows.join('');
