@@ -1,17 +1,17 @@
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=50';
-import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON } from './store.js?v=50';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=51';
+import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON } from './store.js?v=51';
 import {
   planFor, applySession, summarizeItem, readinessMult, readinessLabel,
   waveIndex, weekIndex, wave, isDeload, acwr, streak, sessionLoad, tonnage, nextStepText, stepText, dayIndex,
   estimateMinutes, pairRealRest, paceFactor, blockStatus, nextBlockSuggestions, commitCycle
-} from './progression.js?v=50';
-import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=50';
-import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=50';
+} from './progression.js?v=51';
+import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=51';
+import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=51';
 
 // byId должен видеть и свои записи пользователя, поэтому оборачиваем
 const byId = (id) => suppById(id, S);
-import { timer, fmt, unlockAudio } from './timer.js?v=50';
-import { barChart, gauge } from './charts.js?v=50';
+import { timer, fmt, unlockAudio } from './timer.js?v=51';
+import { barChart, gauge } from './charts.js?v=51';
 
 // ── Мелкие помощники ─────────────────────────────────────────────────────────
 const $ = (s, r = document) => r.querySelector(s);
@@ -1093,16 +1093,6 @@ function viewSettings() {
       </details>` : ''}
     </div>`).join('')}
 
-  <div class="card">
-    <div class="row between">
-      <div class="grow">
-        <div class="sw-label">Начать цикл заново</div>
-        <div class="sw-hint">Сегодняшний день станет первым днём программы. Веса и ступени не тронутся — сдвинется только расписание.</div>
-      </div>
-      <button class="btn ghost sm" data-act="resetcycle">Выровнять</button>
-    </div>
-  </div>
-
   <h3>Уровень</h3>
   <div class="card">
     <div class="row between">
@@ -1190,11 +1180,23 @@ function viewSettings() {
       </div>`).join('')}
   </div>
 
-  <h3>Цикл</h3>
+  <h3>Расписание и волна</h3>
   <div class="card">
-    <div class="row between">
-      <div><div class="sw-label">Старт блока</div><div class="sw-hint">${prettyDate(S.settings.startDate)} · сейчас ${wave(S).name.toLowerCase()}</div></div>
-      <button class="btn ghost sm" data-act="restart-block">Начать заново</button>
+    <div class="row between" style="padding-bottom:10px;border-bottom:1px solid var(--line)">
+      <div class="grow">
+        <div class="sw-label">Расписание программы</div>
+        <div class="sw-hint">Сейчас: ${(() => { const d = PROGRAMS[S.settings.programId].days[dayIndex(S)]; return d.focus === 'rest' ? 'день отдыха' : d.name; })()}.
+        Кнопка сделает сегодня первым днём программы. Веса и ступени не тронет.</div>
+      </div>
+      <button class="btn ghost sm" data-act="resetcycle">Выровнять</button>
+    </div>
+    <div class="row between" style="padding-top:10px">
+      <div class="grow">
+        <div class="sw-label">Волна нагрузки</div>
+        <div class="sw-hint">Старт ${prettyDate(S.settings.startDate)} · сейчас ${wave(S).name.toLowerCase()}.
+        Кнопка вернёт счёт недель к первой. Расписание и веса не тронет.</div>
+      </div>
+      <button class="btn ghost sm" data-act="restart-block">Сбросить</button>
     </div>
   </div>
 
