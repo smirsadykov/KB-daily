@@ -1,4 +1,4 @@
-import { planFor, applySession, summarizeItem, estimateMinutes, tonnage, acwr, streak } from '../js/progression.js';
+import { planFor, applySession, summarizeItem, estimateMinutes, tonnage, blockStatus, acwr, streak } from '../js/progression.js';
 import { PROGRAMS, TRACKS, EXERCISES } from '../js/data.js';
 
 let fails = 0, checks = 0;
@@ -696,6 +696,7 @@ console.log('\n=== 15. Волна не раздувает чужой прото�
           plannedSets: sum.totalSets, doneSets: sum.doneSets, doneReps: sum.doneReps, doneSec: sum.doneSec,
           complete: sum.complete, rpe: 4, perCycle: it.perCycle, cycleDays: it.cycleDays }; }) });
       ok(!изм.some(c => c.apply), `${pid}/д${d}: программа без прогрессии предложила менять нагрузку`);
+      ok(blockStatus(st) === null, `${pid}: у программы без прогрессии считается «блок пройден на N%», а проходить нечего`);
       // Рабочая ступень одна. Достигается двумя способами: лестницу обрезали
       // (если она только у этой программы) или прибили слотом fixedStep
       // (если общая с другими — резать нельзя, поедут соседи).

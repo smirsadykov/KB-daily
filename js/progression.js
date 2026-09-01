@@ -1,6 +1,6 @@
 // Движок прогрессии: что делать сегодня и что менять после тренировки.
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=54';
-import { nextBell, prevBell, todayISO } from './store.js?v=54';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=55';
+import { nextBell, prevBell, todayISO } from './store.js?v=55';
 
 const DAY = 86400000;
 
@@ -836,6 +836,11 @@ const DOUBLE_EX = (exId) => !!EXERCISES[exId]?.double;
 
 export function blockStatus(state, dateISO = todayISO()) {
   const prog = PROGRAMS[state.settings.programId];
+  // В программах без прогрессии проходить нечего: ступень одна, и «пройдено
+  // на 100%» появлялось сразу же, подталкивая сменить программу на ровном месте.
+  // А там, где лестница общая с другими программами и прибита слотом, счётчик
+  // и вовсе считал ступени, по которым эта программа не идёт.
+  if (prog.noProgression) return null;
   const seen = new Map();
   for (const day of prog.days) for (const sl of day.slots) {
     const key = sl.ex + '|' + sl.track;
