@@ -1,17 +1,17 @@
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=51';
-import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON } from './store.js?v=51';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=52';
+import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON } from './store.js?v=52';
 import {
   planFor, applySession, summarizeItem, readinessMult, readinessLabel,
   waveIndex, weekIndex, wave, isDeload, acwr, streak, sessionLoad, tonnage, nextStepText, stepText, dayIndex,
   estimateMinutes, pairRealRest, paceFactor, blockStatus, nextBlockSuggestions, commitCycle
-} from './progression.js?v=51';
-import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=51';
-import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=51';
+} from './progression.js?v=52';
+import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=52';
+import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=52';
 
 // byId должен видеть и свои записи пользователя, поэтому оборачиваем
 const byId = (id) => suppById(id, S);
-import { timer, fmt, unlockAudio } from './timer.js?v=51';
-import { barChart, gauge } from './charts.js?v=51';
+import { timer, fmt, unlockAudio } from './timer.js?v=52';
+import { barChart, gauge } from './charts.js?v=52';
 
 // ── Мелкие помощники ─────────────────────────────────────────────────────────
 const $ = (s, r = document) => r.querySelector(s);
@@ -353,8 +353,12 @@ function viewReadiness(preview, wave, dayOverride = null) {
     <div class="card tight">
       <div class="row between">
         <div class="grow"><div class="ex-name">${h(it.name)}${partner ? ' + ' + h(withR.items[partner.b].name.toLowerCase()) : ''}</div>
-        <div class="ex-meta">${h(it.scheme)}${partner ? ' и ' + h(withR.items[partner.b].scheme) : ''} · ${it.weight} кг${partner ? ' / ' + withR.items[partner.b].weight + ' кг' : ''}</div></div>
+        <div class="ex-meta">${h(it.scheme)}${partner ? ' и ' + h(withR.items[partner.b].scheme) : ''}</div></div>
         <span class="pill${partner ? ' accent' : ''}">${partner ? 'в паре' : 'шаг ' + (it.step + 1) + '/' + it.stepTotal}</span>
+      </div>
+      <div class="row" style="gap:8px;align-items:center;margin-top:8px">
+        <span class="muted small">Гиря</span>
+        ${весВыбор(it)}${partner ? '<span class="muted small">и</span>' + весВыбор(withR.items[partner.b]) : ''}
       </div>
     </div>`;
   }).join('')}
@@ -363,6 +367,16 @@ function viewReadiness(preview, wave, dayOverride = null) {
   ${mult <= 0.7 ? '<p class="muted small center mt">Плохой день — не повод пропускать. Объём я уже урезал, сделай что получится.</p>' : ''}`;
 }
 
+
+// Вес меняется прямо здесь, а не через три экрана настроек. Раньше человек
+// видел «16 кг» в плане, а поправить мог только в «Ещё → Рабочие веса
+// и ступени» — и не находил.
+function весВыбор(it) {
+  const дв = EXERCISES[it.exId]?.double;
+  return `<select data-act="weight" data-ex="${it.exId}" style="min-height:38px;width:${дв ? 120 : 96}px">
+    ${S.settings.bells.map(b => `<option value="${b}" ${b === it.weight ? 'selected' : ''}>${дв ? `пара ${b}` : `${b} кг`}</option>`).join('')}
+  </select>`;
+}
 
 // Весь цикл программы одной строкой, с отметкой, где ты сейчас. Раньше был
 // только намёк «дальше: то-то», и вопрос «почему сегодня отдых» оставался без
