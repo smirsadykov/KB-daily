@@ -680,6 +680,34 @@ console.log('\n=== 15. Волна не раздувает чужой прото�
     }
   }
 
+  // (б5) Программы, где автор прогрессии не предусмотрел: объём один и тот же
+  //      при любом самочувствии и на любой неделе волны, и приложение о прибавке
+  //      не заговаривает. Подстроить нагрузку можно только гирей, руками.
+  for (const [pid, prog] of Object.entries(PROGRAMS)) {
+    if (!prog.noProgression) continue;
+    const st = mkState({ settings: { programId: pid, bells: [16, 24, 32], pairs: [16, 24] } });
+    for (let d = 0; d < prog.days.length; d++) {
+      const p = planFor(st, today, null, d);
+      if (p.isRest) continue;
+      p.items.forEach(it => it.sets.forEach(x => { x.done = true; x.actualReps = x.reps; }));
+      const изм = applySession(st, { id: d, date: today, deload: false, durationMin: 20, sessionRpe: 5,
+        entries: p.items.map(it => { const sum = summarizeItem(it); return {
+          exId: it.exId, trackId: it.trackId, kind: it.kind, weight: it.weight, maxStep: it.maxStep,
+          plannedSets: sum.totalSets, doneSets: sum.doneSets, doneReps: sum.doneReps, doneSec: sum.doneSec,
+          complete: sum.complete, rpe: 4, perCycle: it.perCycle, cycleDays: it.cycleDays }; }) });
+      ok(!изм.some(c => c.apply), `${pid}/д${d}: программа без прогрессии предложила менять нагрузку`);
+      // Рабочая ступень одна. Достигается двумя способами: лестницу обрезали
+      // (если она только у этой программы) или прибили слотом fixedStep
+      // (если общая с другими — резать нельзя, поедут соседи).
+      for (const it of p.items) {
+        const sl = (prog.days[d].slots || []).find(x => x.track === it.trackId);
+        if (sl?.fixedStep !== undefined) { ok(true, ''); continue; }
+        const рабочих = TRACKS[it.trackId].steps.filter(x => !x.swapIn && !x.heavy).length;
+        ok(рабочих === 1, `${pid}: ${it.trackId} оставил ${рабочих} рабочих ступеней вместо одной`);
+      }
+    }
+  }
+
   // (в) постепенная замена гири в минутном режиме делит тяжёлые круги поровну
   for (const [pid, prog] of Object.entries(PROGRAMS)) {
     for (const step of [0, 4, 8, 10, 11]) {

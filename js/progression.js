@@ -1,6 +1,6 @@
 // Движок прогрессии: что делать сегодня и что менять после тренировки.
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=53';
-import { nextBell, prevBell, todayISO } from './store.js?v=53';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=54';
+import { nextBell, prevBell, todayISO } from './store.js?v=54';
 
 const DAY = 86400000;
 
@@ -509,7 +509,12 @@ export function planFor(state, dateISO = todayISO(), readiness = null, dayOverri
     // тренировку. Дойдя до потолка, движок переходит на гирю тяжелее и сбрасывает
     // объём — это и есть заявленный порядок «объём → плотность → вес».
     const потолок = Math.min(track.steps.length - 1, slot.maxStep ?? Infinity);
-    const stepIdx = clamp(p.steps?.[slot.track] ?? p.step ?? 0, 0, потолок);
+    // fixedStep: программа прибивает ступень намертво. Нужен там, где лестница
+    // общая с другими программами и обрезать её в данных нельзя: жим между
+    // подходами в «10 000 махов» и переноска в «Гуманном бёрпи».
+    const stepIdx = slot.fixedStep !== undefined
+      ? clamp(slot.fixedStep, 0, track.steps.length - 1)
+      : clamp(p.steps?.[slot.track] ?? p.step ?? 0, 0, потолок);
     const step = track.steps[stepIdx];
     const hasPair = pairs.includes(weight);
     // Для двугиревой работы лестницей весов служит список пар: подставлять
@@ -667,6 +672,15 @@ export function applySession(state, session) {
 
     if (deload) {
       changes.push({ exId: entry.exId, type: 'hold', text: `${ex.short}: разгрузочная неделя, ничего не трогаем` });
+      continue;
+    }
+
+    // Программы, где автор прогрессии не предусмотрел: объём в них один и тот же
+    // всегда, и приложение о прибавке не заговаривает. Подстроить нагрузку под
+    // себя можно только гирей — руками, когда сам решишь.
+    if (PROGRAMS[state.settings.programId]?.noProgression) {
+      changes.push({ exId: entry.exId, type: 'hold',
+        text: entry.complete ? `${ex.short}: записал` : `${ex.short}: записал сколько получилось` });
       continue;
     }
 
