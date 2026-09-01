@@ -16,12 +16,12 @@ function defaultWeights(bells) {
   const w = {};
   for (const [id, ex] of Object.entries(EXERCISES)) {
     if (ex.kind === 'mobility') continue;
-    // Двугиревые движения стартуют с самой лёгкой гири. Правило «баллистика →
-    // вторая гиря снизу» писалось под одну гирю: с двумя оно даёт вдвое
-    // больший вес в повторе, и человек начинал с 15 махов по 48 кг.
-    w[id] = ex.double ? grind
-      : ex.load === 'ballistic' ? ballistic
-      : ex.load === 'heavy' ? heavy : grind;
+    // Баллистика идёт на гире потяжелее, грайнды — на самой лёгкой. Для
+    // двугиревых программ это и даёт раскладку источника: в A/B день A
+    // (присед, жим, тяга) на паре полегче, день B (махи с трастерами) на
+    // паре потяжелее. Пробовал сажать все двугиревые движения на лёгкую
+    // пару — сломал именно эту раскладку.
+    w[id] = ex.load === 'ballistic' ? ballistic : ex.load === 'heavy' ? heavy : grind;
   }
   return w;
 }
@@ -124,6 +124,33 @@ export function update(fn) {
   fn(state);
   save();
   return state;
+}
+
+// Начать программу заново: расписание с первого дня, волна с первой недели,
+// веса и ступени — как программа их назначает новичку. Единственная кнопка
+// сброса: раньше их было две, они назывались почти одинаково и делали разное.
+export function restartProgram() {
+  const w = defaultWeights(state.settings.bells);
+  const prog = PROGRAMS[state.settings.programId];
+  const seen = new Set();
+  for (const day of prog.days) {
+    for (const sl of (day.slots || [])) {
+      for (const ex of [sl.ex, sl.fallback].filter(Boolean)) {
+        if (seen.has(ex)) continue;
+        seen.add(ex);
+        const p = state.progress[ex];
+        if (!p) continue;
+        p.weight = w[ex] ?? p.weight;
+        p.steps = {}; p.step = 0; p.wins = 0; p.fails = 0;
+      }
+    }
+  }
+  state.settings.cyclePos = 0;
+  state.settings.cycleDate = todayISO();
+  state.settings.startDate = todayISO();
+  state.today = null;
+  save();
+  return [...seen];
 }
 
 export function resetAll() {

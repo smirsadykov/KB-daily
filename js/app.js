@@ -1,5 +1,5 @@
 import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=52';
-import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON } from './store.js?v=52';
+import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON, restartProgram } from './store.js?v=52';
 import {
   planFor, applySession, summarizeItem, readinessMult, readinessLabel,
   waveIndex, weekIndex, wave, isDeload, acwr, streak, sessionLoad, tonnage, nextStepText, stepText, dayIndex,
@@ -1194,23 +1194,16 @@ function viewSettings() {
       </div>`).join('')}
   </div>
 
-  <h3>Расписание и волна</h3>
+  <h3>Начать программу заново</h3>
   <div class="card">
-    <div class="row between" style="padding-bottom:10px;border-bottom:1px solid var(--line)">
+    <div class="row between">
       <div class="grow">
-        <div class="sw-label">Расписание программы</div>
-        <div class="sw-hint">Сейчас: ${(() => { const d = PROGRAMS[S.settings.programId].days[dayIndex(S)]; return d.focus === 'rest' ? 'день отдыха' : d.name; })()}.
-        Кнопка сделает сегодня первым днём программы. Веса и ступени не тронет.</div>
+        <div class="sw-label">Сброс к настройкам программы</div>
+        <div class="sw-hint">Сегодня станет первым днём, веса и ступени вернутся к тем, что программа назначает на старте.
+        Сейчас: ${(() => { const d = PROGRAMS[S.settings.programId].days[dayIndex(S)]; return d.focus === 'rest' ? 'день отдыха' : d.name; })()}, старт ${prettyDate(S.settings.startDate)}.
+        Дневник и история не тронутся.</div>
       </div>
-      <button class="btn ghost sm" data-act="resetcycle">Выровнять</button>
-    </div>
-    <div class="row between" style="padding-top:10px">
-      <div class="grow">
-        <div class="sw-label">Волна нагрузки</div>
-        <div class="sw-hint">Старт ${prettyDate(S.settings.startDate)} · сейчас ${wave(S).name.toLowerCase()}.
-        Кнопка вернёт счёт недель к первой. Расписание и веса не тронет.</div>
-      </div>
-      <button class="btn ghost sm" data-act="restart-block">Сбросить</button>
+      <button class="btn ghost sm" data-act="restart-block">Начать заново</button>
     </div>
   </div>
 
@@ -1480,13 +1473,6 @@ const actions = {
     el.outerHTML = '<div class="muted small mt">Применил</div>';
     toast('Нагрузка обновлена');
   },
-  resetcycle() {
-    update(s => { s.settings.cyclePos = 0; s.settings.cycleDate = todayISO(); s.today = null; });
-    render();
-    const prog = PROGRAMS[S.settings.programId];
-    const первый = prog.days[0];
-    toast(первый.focus === 'rest' ? 'Цикл с начала: сегодня отдых' : `Цикл с начала: сегодня ${первый.name}`);
-  },
   deload(el) {
     update(s => { s.settings.deloadEvery = +el.dataset.v; s.today = null; });
     render();
@@ -1595,8 +1581,13 @@ const actions = {
   't-add'(el) { timer.addTime(+el.dataset.v); updateTimerScreen(); updateRestbar(); },
   't-stop'() { timer.onFinish = null; timer.stop(); render(); },
   'restart-block'() {
-    update(s => { s.settings.startDate = todayISO(); s.today = null; });
-    render(); toast('Блок начат заново с сегодня');
+    const prog = PROGRAMS[S.settings.programId];
+    restartProgram();
+    render();
+    const первый = prog.days[0];
+    toast(первый.focus === 'rest'
+      ? 'Программа с начала: сегодня отдых'
+      : `Программа с начала: сегодня ${первый.name}`);
   },
   export() {
     const blob = new Blob([exportJSON()], { type: 'application/json' });
