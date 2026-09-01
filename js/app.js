@@ -1,17 +1,17 @@
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=57';
-import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON, restartProgram } from './store.js?v=57';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=58';
+import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON, restartProgram } from './store.js?v=58';
 import {
   planFor, applySession, summarizeItem, readinessMult, readinessLabel,
   waveIndex, weekIndex, wave, isDeload, acwr, streak, sessionLoad, tonnage, nextStepText, stepText, dayIndex,
   estimateMinutes, pairRealRest, paceFactor, blockStatus, nextBlockSuggestions, commitCycle
-} from './progression.js?v=57';
-import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=57';
-import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=57';
+} from './progression.js?v=58';
+import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=58';
+import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=58';
 
 // byId должен видеть и свои записи пользователя, поэтому оборачиваем
 const byId = (id) => suppById(id, S);
-import { timer, fmt, unlockAudio } from './timer.js?v=57';
-import { barChart, gauge } from './charts.js?v=57';
+import { timer, fmt, unlockAudio } from './timer.js?v=58';
+import { barChart, gauge } from './charts.js?v=58';
 
 // ── Мелкие помощники ─────────────────────────────────────────────────────────
 // Версия берётся из адреса самого модуля: она не может разойтись с тем,
@@ -154,6 +154,7 @@ function viewOnboarding() {
       <div class="muted small mt">${h(p.desc)}</div>
       <div class="muted small" style="opacity:.75">${h(p.for)}</div>
       ${p.warn ? `<div class="muted small" style="margin-top:8px;color:var(--warn)">⚠️ ${h(p.warn)}</div>` : ''}
+      ${p.bellRule ? `<div class="muted small" style="margin-top:6px"><b>Какая гиря нужна:</b> ${h(p.bellRule.текст)}${p.bellRule.источник ? '' : ''}</div>` : ''}
       ${p.origin ? `<div class="muted small" style="opacity:.6;margin-top:6px">Происхождение: ${h(p.origin)}</div>` : ''}
       ${p.gives ? `<details class="tips" data-key="prog-${id}" style="margin-top:8px">
         <summary>Что даёт и чего не даёт</summary>
@@ -659,6 +660,24 @@ function viewTest() {
   <button class="btn line mt" data-act="test-back">Назад</button>`;
 }
 
+// Критерий выбора гири у каждой программы свой, и тест проверяет не все.
+// Врать про точность нельзя: где не меряет — так и пишем.
+function вердиктыПоГире(d) {
+  const годные = [], непроверяемые = [];
+  for (const [pid, p] of Object.entries(PROGRAMS)) {
+    const r = p.bellRule;
+    if (!r) continue;
+    if (r.тест === 'press') {
+      const [низ, верх] = r.диапазон;
+      const подходит = d.press.reps >= низ && d.press.reps <= верх;
+      годные.push({ pid, name: p.name, подходит, чем: `жим ${d.press.reps} повт, нужно ${низ}–${верх}` });
+    } else if (r.источник) {
+      непроверяемые.push({ name: p.name, текст: r.текст });
+    }
+  }
+  return { годные, непроверяемые };
+}
+
 function viewTestResult() {
   const d = testDraft();
   const placement = computePlacement(d);
@@ -690,6 +709,23 @@ function viewTestResult() {
       </tr>`).join('')}
     </table>
   </div>
+
+  ${(() => {
+    const в = вердиктыПоГире(d);
+    if (!в.годные.length && !в.непроверяемые.length) return '';
+    return `
+    <h3>Подходит ли этот вес программам</h3>
+    <div class="card">
+      ${в.годные.map(x => `<div class="row between" style="padding:6px 0">
+        <span class="grow small">${h(x.name)}<div class="muted small">${h(x.чем)}</div></span>
+        <span class="pill ${x.подходит ? 'ok' : 'warn'}">${x.подходит ? 'подходит' : 'мимо'}</span>
+      </div>`).join('')}
+      ${в.непроверяемые.length ? `
+        <div class="muted small mt">Эти программы задают вес своим критерием, а тест его не меряет:</div>
+        ${в.непроверяемые.map(x => `<div class="muted small" style="margin-top:6px"><b>${h(x.name)}</b> — ${h(x.текст)}</div>`).join('')}` : ''}
+      <p class="muted small mt mb0">Тест меряет одну гирю. У парных программ жать пару тяжелее, чем одну такую же, — там критерий проверяется на глаз.</p>
+    </div>`;
+  })()}
 
   ${rest.length ? `<details class="card tight tips" data-key="test-rest">
     <summary>Остальные упражнения (для других программ)</summary>
@@ -1095,6 +1131,7 @@ function viewSettings() {
       <div class="muted small" style="opacity:.85">${h(частотаПрограммы(p))}${p.days.length !== 7 ? ` · цикл ${p.days.length} ${p.days.length < 5 ? 'дня' : 'дней'}` : ''}</div>
       <div class="muted small mt">${h(p.desc)}</div>
       ${p.warn ? `<div class="muted small" style="margin-top:8px;color:var(--warn)">⚠️ ${h(p.warn)}</div>` : ''}
+      ${p.bellRule ? `<div class="muted small" style="margin-top:6px"><b>Какая гиря нужна:</b> ${h(p.bellRule.текст)}${p.bellRule.источник ? '' : ''}</div>` : ''}
       ${p.origin ? `<div class="muted small" style="opacity:.6;margin-top:6px">Происхождение: ${h(p.origin)}</div>` : ''}
       ${p.gives ? `<details class="tips" data-key="prog-${id}" style="margin-top:8px">
         <summary>Что даёт и чего не даёт</summary>
