@@ -466,6 +466,22 @@ console.log('\n=== 13. Программа главнее календаря ==='
     }
   }
 
+  // ── тренировка двигает цикл ровно на один день, а не на два
+  {
+    const st = mkState({ settings: { programId: 'ab15' } });
+    st.settings.cyclePos = 0; st.settings.cycleDate = today;
+    const дни = PROGRAMS.ab15.days;
+    // сделал день A сегодня: указатель НЕ трогаем руками, его считает resolveCycle
+    st.sessions = [{ date: today, type: 'workout', entries: [] }];
+    ok(resolveCycle(st, today) === 0, 'в день тренировки экран должен показывать её же, а не следующий день');
+    const завтра = new Date(Date.now() + 864e5).toISOString().slice(0, 10);
+    const после = new Date(Date.now() + 2 * 864e5).toISOString().slice(0, 10);
+    ok(дни[resolveCycle(st, завтра)].focus === 'rest',
+       `назавтра после дня A должен быть отдых, получили ${дни[resolveCycle(st, завтра)].name}`);
+    ok(дни[resolveCycle(st, после)].id === 'B',
+       `через день после дня A должен быть день B, получили ${дни[resolveCycle(st, после)].name}`);
+  }
+
   // ── сквозной сценарий: пропуск не ломает последовательность
   {
     const st = mkState({ settings: { programId: 'ab15' } });
