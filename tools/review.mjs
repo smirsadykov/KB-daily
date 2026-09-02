@@ -108,7 +108,9 @@ for (const r of rows) {
   if (r.неВлезает) console.log(`  ⚠️ в 25 минут не влезает: ${r.неВлезает} из ${r.всегоДней} дней (на финальных ступенях)`);
   if (r.финал[1] > 60) console.log(`  ⚠️ финальные сессии дольше часа: ${r.финал[1]} мин`);
   if (r.недельДоКонца > 40) console.log(`  ⚠️ лестница очень длинная: ~${r.недельДоКонца} недель до конца`);
-  if (r.недельДоКонца < 4) console.log(`  ⚠️ лестница короткая: закончится за ~${r.недельДоКонца} недель`);
+  // У программ без авторской прогрессии рабочая ступень одна — это замысел,
+  // а не короткая лестница. Ругаться на них не за что.
+  if (!PROGRAMS[r.pid].noProgression && r.недельДоКонца < 4) console.log(`  ⚠️ лестница короткая: закончится за ~${r.недельДоКонца} недель`);
 }
 
 console.log('\n' + '═'.repeat(74));
@@ -132,8 +134,10 @@ for (const [pid, prog] of Object.entries(PROGRAMS)) {
     const eff = tr.fixedPace ? base : Math.max(1, Math.round(base * Math.min(perWeekReal, 3) / 3));
     const need = (tr.steps.length - 1) * eff;
     const weeks = need / perWeekReal;
-    // осознанно заданный темп не считаем проблемой
-    const flag = weeks > 30 ? ' ⚠️ практически недостижимо'
+    // Осознанно заданный темп не считаем проблемой. И там, где автор программы
+    // прогрессии не предусмотрел, ступень одна — «слишком быстро» тут не о чем.
+    const flag = prog.noProgression ? ' (прогрессии в программе нет)'
+               : weeks > 30 ? ' ⚠️ практически недостижимо'
                : (weeks < 3 && !tr.fixedPace) ? ' ⚠️ слишком быстро'
                : tr.fixedPace ? ' (темп задан программой)' : '';
     lines.push(`    ${EXERCISES[ex].short.padEnd(14)} ${perWeekReal.toFixed(1)}×/нед · ${tr.steps.length} ступеней · подтверждений ${eff} · ~${Math.round(weeks)} нед${flag}`);
