@@ -1,17 +1,17 @@
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=64';
-import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON, restartProgram } from './store.js?v=64';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=65';
+import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON, restartProgram } from './store.js?v=65';
 import {
   planFor, applySession, summarizeItem, readinessMult, readinessLabel,
   waveIndex, weekIndex, wave, isDeload, acwr, streak, sessionLoad, tonnage, nextStepText, stepText, dayIndex,
   estimateMinutes, pairRealRest, paceFactor, blockStatus, nextBlockSuggestions, commitCycle
-} from './progression.js?v=64';
-import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=64';
-import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=64';
+} from './progression.js?v=65';
+import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=65';
+import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=65';
 
 // byId должен видеть и свои записи пользователя, поэтому оборачиваем
 const byId = (id) => suppById(id, S);
-import { timer, fmt, unlockAudio } from './timer.js?v=64';
-import { barChart, gauge } from './charts.js?v=64';
+import { timer, fmt, unlockAudio } from './timer.js?v=65';
+import { barChart, gauge } from './charts.js?v=65';
 
 // ── Мелкие помощники ─────────────────────────────────────────────────────────
 // Версия берётся из адреса самого модуля: она не может разойтись с тем,
@@ -104,6 +104,7 @@ function render() {
   if (tab === 'history') { screen.innerHTML = viewHistory(); }
   if (tab === 'progress') { screen.innerHTML = viewProgress(); }
   if (tab === 'settings') { screen.innerHTML = viewSettings(); }
+  if (tab === 'programs') { screen.innerHTML = viewPrograms(); }
   $$('.tab').forEach(b => b.classList.toggle('is-active', b.dataset.tab === tab));
 
   вернутьРаскрытые();
@@ -1174,6 +1175,40 @@ function viewProgress() {
   </div>`;
 }
 
+// ── Экран «Программы» ────────────────────────────────────────────────────────
+// Раньше семнадцать карточек по шестьсот знаков лежали прямо в «Ещё», и всё,
+// что ниже, — гири, веса, «Начать заново» — было под стеной текста. Здесь
+// строка на программу; описание раскрывается по касанию, а выбор — отдельной
+// кнопкой, чтобы чтение описания не переключало программу.
+function viewPrograms() {
+  setTop('Программы', `${Object.keys(PROGRAMS).length} · выбрана ${PROGRAMS[S.settings.programId].name}`);
+  const cur = S.settings.programId;
+  const порядок = [cur, ...Object.keys(PROGRAMS).filter(id => id !== cur)];
+  return `
+  <button class="btn line mb" data-act="programs-back">← Назад</button>
+  ${порядок.map(id => { const p = PROGRAMS[id]; const выбрана = id === cur; return `
+    <details class="card tight tips" data-key="prog-${id}" ${выбрана ? 'style="border-color:var(--accent)"' : ''}>
+      <summary style="list-style:none;cursor:pointer">
+        <div class="row between">
+          <div class="grow">
+            <div class="ex-name">${h(p.name)}${выбрана ? ' <span class="pill accent">выбрана</span>' : ''}</div>
+            <div class="muted small">${h(частотаПрограммы(p))}${p.days.length !== 7 ? ` · цикл ${p.days.length} ${p.days.length < 5 ? 'дня' : 'дней'}` : ''} · ${h(p.tag)}</div>
+          </div>
+          <span class="muted small">›</span>
+        </div>
+      </summary>
+      <div class="muted small mt">${h(p.desc)}</div>
+      <div class="muted small" style="opacity:.75;margin-top:4px">${h(p.for)}</div>
+      ${p.warn ? `<div class="muted small" style="margin-top:8px;color:var(--warn)">⚠️ ${h(p.warn)}</div>` : ''}
+      ${p.bellRule ? `<div class="muted small" style="margin-top:6px"><b>Какая гиря нужна:</b> ${h(p.bellRule.текст)}</div>` : ''}
+      ${p.gives ? `<div class="muted small" style="margin-top:8px"><b>Даёт:</b></div><ul class="cues">${p.gives.map(x => `<li>${h(x)}</li>`).join('')}</ul>
+        <div class="muted small"><b>Не даёт:</b></div><ul class="cues">${p.limits.map(x => `<li>${h(x)}</li>`).join('')}</ul>` : ''}
+      ${p.origin ? `<div class="muted small" style="opacity:.6;margin-top:6px">Происхождение: ${h(p.origin)}</div>` : ''}
+      ${выбрана ? '' : `<button class="btn mt" data-act="program" data-v="${id}">Выбрать эту программу</button>`}
+    </details>`; }).join('')}
+  <button class="btn line mt" data-act="programs-back">← Назад</button>`;
+}
+
 // ── Экран «Ещё» ──────────────────────────────────────────────────────────────
 function viewSettings() {
   setTop('Ещё', 'Программа, гири, данные');
@@ -1183,22 +1218,15 @@ function viewSettings() {
 
   return `
   <h3>Программа</h3>
-  ${Object.entries(PROGRAMS).map(([id, p]) => `
-    <div class="card tight tap ${S.settings.programId === id ? 'accent' : ''}" role="button" tabindex="0" data-act="program" data-v="${id}">
-      <div class="row between"><div class="ex-name">${h(p.name)}</div><span class="pill ${S.settings.programId === id ? 'accent' : ''}">${h(p.tag)}</span></div>
-      <div class="muted small" style="opacity:.85">${h(частотаПрограммы(p))}${p.days.length !== 7 ? ` · цикл ${p.days.length} ${p.days.length < 5 ? 'дня' : 'дней'}` : ''}</div>
-      <div class="muted small mt">${h(p.desc)}</div>
-      ${p.warn ? `<div class="muted small" style="margin-top:8px;color:var(--warn)">⚠️ ${h(p.warn)}</div>` : ''}
-      ${p.bellRule ? `<div class="muted small" style="margin-top:6px"><b>Какая гиря нужна:</b> ${h(p.bellRule.текст)}${p.bellRule.источник ? '' : ''}</div>` : ''}
-      ${p.origin ? `<div class="muted small" style="opacity:.6;margin-top:6px">Происхождение: ${h(p.origin)}</div>` : ''}
-      ${p.gives ? `<details class="tips" data-key="prog-${id}" style="margin-top:8px">
-        <summary>Что даёт и чего не даёт</summary>
-        <div class="muted small" style="margin-top:6px"><b>Даёт:</b></div>
-        <ul class="cues">${p.gives.map(x => `<li>${h(x)}</li>`).join('')}</ul>
-        <div class="muted small"><b>Не даёт:</b></div>
-        <ul class="cues">${p.limits.map(x => `<li>${h(x)}</li>`).join('')}</ul>
-      </details>` : ''}
-    </div>`).join('')}
+  <div class="card">
+    <div class="row between">
+      <div class="grow">
+        <div class="ex-name">${h(prog.name)}</div>
+        <div class="muted small">${h(частотаПрограммы(prog))}${prog.days.length !== 7 ? ` · цикл ${prog.days.length} ${prog.days.length < 5 ? 'дня' : 'дней'}` : ''} · ${h(prog.tag)}</div>
+      </div>
+      <button class="btn ghost sm" data-act="programs-open">Сменить</button>
+    </div>
+  </div>
 
   <h3>Уровень</h3>
   <div class="card">
@@ -1364,6 +1392,7 @@ const actions = {
       if (changed) { s.settings.startDate = todayISO(); s.settings.cyclePos = 0; s.settings.cycleDate = todayISO(); }
       s.today = null;
     });
+    if (tab === 'programs') tab = 'settings';
     render();
     if (S.onboarded && changed) toast('Программа сменилась, начинаем с первого дня');
   },
@@ -1647,6 +1676,8 @@ const actions = {
     render();
     toast('Ступень выставлена');
   },
+  'programs-open'() { tab = 'programs'; render(); window.scrollTo({ top: 0 }); },
+  'programs-back'() { tab = 'settings'; render(); },
   'test-open'() { S.testDraft = defaultTestDraft(); save(); tab = 'test'; render(); },
   'test-exit'() { tab = 'today'; render(); },
   'test-next'() { const d = testDraft(); d.i = Math.min(d.i + 1, TEST_ORDER.length - 1); save(); render(); },
