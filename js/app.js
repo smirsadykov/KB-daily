@@ -1,17 +1,17 @@
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=65';
-import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON, restartProgram } from './store.js?v=65';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=66';
+import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON, restartProgram } from './store.js?v=66';
 import {
   planFor, applySession, summarizeItem, readinessMult, readinessLabel,
   waveIndex, weekIndex, wave, isDeload, acwr, streak, sessionLoad, tonnage, nextStepText, stepText, dayIndex,
   estimateMinutes, pairRealRest, paceFactor, blockStatus, nextBlockSuggestions, commitCycle
-} from './progression.js?v=65';
-import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=65';
-import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=65';
+} from './progression.js?v=66';
+import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=66';
+import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=66';
 
 // byId должен видеть и свои записи пользователя, поэтому оборачиваем
 const byId = (id) => suppById(id, S);
-import { timer, fmt, unlockAudio } from './timer.js?v=65';
-import { barChart, gauge } from './charts.js?v=65';
+import { timer, fmt, unlockAudio } from './timer.js?v=66';
+import { barChart, gauge } from './charts.js?v=66';
 
 // ── Мелкие помощники ─────────────────────────────────────────────────────────
 // Версия берётся из адреса самого модуля: она не может разойтись с тем,
@@ -371,8 +371,22 @@ function viewReadiness(preview, wave, dayOverride = null) {
   ${nextDaysHint(preview)}
   </div>
 
-  <h3>Как ты сегодня</h3>
-  <div class="card">
+  <!-- Опросник свёрнут в одну строку. Раньше перед планом стояли три вопроса
+       по пять кнопок — пятнадцать кнопок каждый день, хотя отвечать не обязательно
+       и по умолчанию объём ×1. Строка видна всегда, раскрывается касанием; ответы
+       и множитель считаются ровно как прежде. data-key держит её раскрытой при
+       перерисовке после каждого ответа. -->
+  <details class="card tight tips" data-key="readiness">
+    <summary style="list-style:none;cursor:pointer">
+      <div class="row between">
+        <div class="grow">
+          <div class="ex-name" style="font-size:15px">Как ты сегодня?</div>
+          <div class="muted small">${h(lab.text)} · объём ×${withR.mult.toFixed(2).replace('.', ',')}</div>
+        </div>
+        <span class="pill ${lab.tone === 'bad' ? 'bad' : lab.tone === 'warn' ? 'warn' : 'ok'}">${withR.mult === 1 ? 'обычно' : withR.mult < 1 ? 'меньше' : 'больше'}</span>
+      </div>
+    </summary>
+    <div style="margin-top:12px">
     ${READINESS_Q.map(q => `
       <div style="margin-bottom:14px">
         <div class="row between" style="margin-bottom:6px">
@@ -383,11 +397,9 @@ function viewReadiness(preview, wave, dayOverride = null) {
           ${[1, 2, 3, 4, 5].map(v => `<button class="${draftReadiness[q.k] === v ? 'on' : ''}" data-act="readiness" data-k="${q.k}" data-v="${v}">${v}</button>`).join('')}
         </div>
       </div>`).join('')}
-    <div class="row between">
-      <span class="pill ${lab.tone === 'bad' ? 'bad' : lab.tone === 'warn' ? 'warn' : 'ok'}">${h(lab.text)}</span>
-      <span class="muted small">объём ×${withR.mult.toFixed(2).replace('.', ',')}</span>
+    <p class="muted small mb0">Отвечать не обязательно: без ответа объём обычный. Плохой день срежет объём, хороший ничего не добавит там, где объём задан автором программы.</p>
     </div>
-  </div>
+  </details>
 
   <h3>План на сегодня · примерно ${est} мин${withR.paceFactor !== 1 ? ' (по твоему темпу)' : ''}</h3>
   ${withR.trims?.length ? `
