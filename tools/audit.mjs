@@ -482,6 +482,23 @@ console.log('\n=== 13. Программа главнее календаря ==='
        `через день после дня A должен быть день B, получили ${дни[resolveCycle(st, после)].name}`);
   }
 
+  // ── тренировка по ДРУГОЙ программе цикл этой не двигает
+  {
+    const вчера = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
+    const мк = (сессии) => {
+      const st = mkState({ settings: { programId: 'ab_ext' } });
+      st.settings.cyclePos = 0; st.settings.cycleDate = вчера; st.sessions = сессии;
+      return st;
+    };
+    const дни = PROGRAMS.ab_ext.days;
+    ok(дни[resolveCycle(мк([{ date: вчера, programId: 'ab15', type: 'workout' }]))].id === 'A',
+       'тренировка по другой программе не должна двигать цикл этой');
+    ok(дни[resolveCycle(мк([{ date: вчера, programId: 'ab_ext', type: 'workout' }]))].id === 'B',
+       'своя тренировка цикл двигает');
+    ok(дни[resolveCycle(мк([{ date: вчера, type: 'workout' }]))].id === 'B',
+       'старая запись без программы засчитывается как своя, чтобы не поехала история');
+  }
+
   // ── сквозной сценарий: пропуск не ломает последовательность
   {
     const st = mkState({ settings: { programId: 'ab15' } });

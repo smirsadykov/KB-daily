@@ -1,17 +1,17 @@
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=60';
-import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON, restartProgram } from './store.js?v=60';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=61';
+import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON, restartProgram } from './store.js?v=61';
 import {
   planFor, applySession, summarizeItem, readinessMult, readinessLabel,
   waveIndex, weekIndex, wave, isDeload, acwr, streak, sessionLoad, tonnage, nextStepText, stepText, dayIndex,
   estimateMinutes, pairRealRest, paceFactor, blockStatus, nextBlockSuggestions, commitCycle
-} from './progression.js?v=60';
-import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=60';
-import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=60';
+} from './progression.js?v=61';
+import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=61';
+import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=61';
 
 // byId должен видеть и свои записи пользователя, поэтому оборачиваем
 const byId = (id) => suppById(id, S);
-import { timer, fmt, unlockAudio } from './timer.js?v=60';
-import { barChart, gauge } from './charts.js?v=60';
+import { timer, fmt, unlockAudio } from './timer.js?v=61';
+import { barChart, gauge } from './charts.js?v=61';
 
 // ── Мелкие помощники ─────────────────────────────────────────────────────────
 // Версия берётся из адреса самого модуля: она не может разойтись с тем,
@@ -191,6 +191,12 @@ function viewToday() {
   // если тренировка уже начата — показываем её, даже если по циклу сегодня отдых
   if (S.today) return viewSession(S.today.plan);
 
+  // Сегодня уже тренировался по этой программе — экран говорит об этом,
+  // а не предлагает ту же тренировку заново, как будто ничего не было.
+  const сегодняСделано = S.sessions.filter(x => x.date === date && x.type !== 'rest'
+    && (x.programId === undefined || x.programId === S.settings.programId));
+  if (сегодняСделано.length) return viewDoneToday(сегодняСделано);
+
   const preview = planFor(S, date, null);
   const banner = !(S.tests || []).length ? `
     <div class="card tight tap" role="button" tabindex="0" data-act="test-open" style="border-color:var(--accent)">
@@ -250,6 +256,42 @@ function suppCard() {
         .join(' · ') || 'Нажми ещё раз, чтобы снять отметку'}
     </div>
   </div>`;
+}
+
+// Экран после тренировки: что сделано сегодня и что будет завтра.
+// Раньше план строился заново и выглядел несделанным — человек открывал
+// приложение отметить витамины, а оно предлагало ту же тренировку.
+function viewDoneToday(сессии) {
+  const завтра = todayISO(new Date(Date.now() + 864e5));
+  const prog = PROGRAMS[S.settings.programId];
+  const деньЗавтра = prog.days[dayIndex(S, завтра)];
+
+  return `
+  <div class="card accent">
+    <div class="row between">
+      <div class="grow">
+        <div class="eyebrow-sm muted small">Сегодня сделано</div>
+        <div class="ex-name" style="font-size:19px">${сессии.map(x => h(x.dayName || 'тренировка')).join(' + ')}</div>
+      </div>
+      <span class="pill accent">✓</span>
+    </div>
+    ${сессии.map(x => `<div class="muted small mt">${x.entries.length} ${plural(x.entries.length, 'упражнение', 'упражнения', 'упражнений')} · ${tonnage(x).toLocaleString('ru-RU')} кг · ${x.durationMin} мин${x.sessionRpe ? ' · ' + h(rpeLabel(x.sessionRpe).toLowerCase()) : ''}</div>`).join('')}
+  </div>
+
+  <div class="card">
+    <div class="row between">
+      <div class="grow">
+        <div class="muted small">Завтра</div>
+        <div class="ex-name">${деньЗавтра.focus === 'rest' ? 'Отдых' : h(деньЗавтра.name)}</div>
+        <div class="muted small">${h(prog.name)}</div>
+      </div>
+    </div>
+  </div>
+
+  ${suppCard()}
+
+  <button class="btn ghost" data-act="train-again">Тренироваться ещё раз</button>
+  <p class="muted small center mt">Цикл от второй тренировки за день не сдвинется: он считает дни, а не записи.</p>`;
 }
 
 function viewRestDay(plan) {
@@ -1639,6 +1681,11 @@ const actions = {
     render();
     const el = document.getElementById('weights');
     if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 1200); }
+  },
+  'train-again'() {
+    update(s => { s.today = null; });
+    ensureToday();
+    render();
   },
   'restart-block'() {
     const prog = PROGRAMS[S.settings.programId];

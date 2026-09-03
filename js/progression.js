@@ -1,6 +1,6 @@
 // Движок прогрессии: что делать сегодня и что менять после тренировки.
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=60';
-import { nextBell, prevBell, todayISO } from './store.js?v=60';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=61';
+import { nextBell, prevBell, todayISO } from './store.js?v=61';
 
 const DAY = 86400000;
 
@@ -55,7 +55,13 @@ export function resolveCycle(state, dateISO = todayISO()) {
   let guard = 0;
   while (cur < dateISO && cur < сегодня && guard++ < 3000) {
     const day = prog.days[pos];
-    const тренировался = (state.sessions || []).some(s => s.date === cur && s.type !== 'rest');
+    // Считаем только тренировки ЭТОЙ программы. Раньше цикл двигала любая
+    // запись за этот день: сделал утром день A по одной программе, вечером
+    // переключился на другую — и её цикл уезжал вперёд, хотя по ней ты
+    // не тренировался. У старых записей programId может не быть, их
+    // засчитываем как свои, иначе поедет уже накопленная история.
+    const тренировался = (state.sessions || []).some(s => s.date === cur && s.type !== 'rest'
+      && (s.programId === undefined || s.programId === state.settings.programId));
     if (day.focus === 'rest' || тренировался) pos = (pos + 1) % len;
     cur = addDay(cur);
   }
