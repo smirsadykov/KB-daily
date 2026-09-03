@@ -1,17 +1,17 @@
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=69';
-import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON, restartProgram } from './store.js?v=69';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=70';
+import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON, restartProgram } from './store.js?v=70';
 import {
   planFor, applySession, summarizeItem, readinessMult, readinessLabel,
   waveIndex, weekIndex, wave, isDeload, acwr, streak, sessionLoad, tonnage, nextStepText, stepText, dayIndex,
   estimateMinutes, pairRealRest, paceFactor, blockStatus, nextBlockSuggestions, commitCycle
-} from './progression.js?v=69';
-import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=69';
-import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=69';
+} from './progression.js?v=70';
+import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=70';
+import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=70';
 
 // byId должен видеть и свои записи пользователя, поэтому оборачиваем
 const byId = (id) => suppById(id, S);
-import { timer, fmt, unlockAudio } from './timer.js?v=69';
-import { barChart, gauge } from './charts.js?v=69';
+import { timer, fmt, unlockAudio } from './timer.js?v=70';
+import { barChart, gauge } from './charts.js?v=70';
 
 // ── Мелкие помощники ─────────────────────────────────────────────────────────
 // Версия берётся из адреса самого модуля: она не может разойтись с тем,
@@ -1472,8 +1472,12 @@ const actions = {
     // или правка старого подхода экран не дёргают.
     if (s.done) {
       const el = document.querySelector('.set.next');
-      if (el) el.scrollIntoView({ block: 'center',
-        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+      // Плавно — только когда есть чем анимировать: при нулевой высоте окна
+      // (скрытая вкладка, панель предпросмотра) smooth-прокрутка молча глохнет,
+      // а 'auto' просто ставит смещение. Проверено живой диагностикой:
+      // ручной scrollIntoView с 'auto' сдвигал страницу, вызов со 'smooth' — нет.
+      const плавно = innerHeight > 0 && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (el) el.scrollIntoView({ block: 'center', behavior: плавно ? 'smooth' : 'auto' });
     }
     if (!s.done || !S.settings.autoRest || it.emom) return;
     // в паре пауза короткая: отдых этому движению даст следующее упражнение
