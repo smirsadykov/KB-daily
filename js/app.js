@@ -1,17 +1,17 @@
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=70';
-import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON, restartProgram } from './store.js?v=70';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=71';
+import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON, restartProgram } from './store.js?v=71';
 import {
   planFor, applySession, summarizeItem, readinessMult, readinessLabel,
   waveIndex, weekIndex, wave, isDeload, acwr, streak, sessionLoad, tonnage, nextStepText, stepText, dayIndex,
   estimateMinutes, pairRealRest, paceFactor, blockStatus, nextBlockSuggestions, commitCycle
-} from './progression.js?v=70';
-import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=70';
-import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=70';
+} from './progression.js?v=71';
+import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=71';
+import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=71';
 
 // byId должен видеть и свои записи пользователя, поэтому оборачиваем
 const byId = (id) => suppById(id, S);
-import { timer, fmt, unlockAudio } from './timer.js?v=70';
-import { barChart, gauge } from './charts.js?v=70';
+import { timer, fmt, unlockAudio } from './timer.js?v=71';
+import { barChart, gauge } from './charts.js?v=71';
 
 // ── Мелкие помощники ─────────────────────────────────────────────────────────
 // Версия берётся из адреса самого модуля: она не может разойтись с тем,
@@ -1243,6 +1243,7 @@ function viewSettings() {
   for (const day of prog.days) for (const sl of day.slots) usedEx.add(sl.ex);
 
   return `
+  <div class="eyebrow" style="margin:22px 0 -6px">Программа</div>
   <h3>Программа</h3>
   <div class="card">
     <div class="row between">
@@ -1266,17 +1267,20 @@ function viewSettings() {
     <p class="muted small mt mb0">Определяет рабочие веса и стартовые ступени за одну сессию. Имеет смысл повторять раз в 8–12 недель или после перерыва.</p>
   </div>
 
-  <h3>Добавки</h3>
-  <div class="card tap" role="button" tabindex="0" data-act="supps-open">
+  <h3>Начать программу заново</h3>
+  <div class="card">
     <div class="row between">
       <div class="grow">
-        <div class="sw-label">Витамины и добавки</div>
-        <div class="sw-hint">${(S.settings.supps || []).length ? 'принимаешь: ' + (S.settings.supps || []).length : 'что работает по данным МОК и ISSN'}</div>
+        <div class="sw-label">Сброс к настройкам программы</div>
+        <div class="sw-hint">Сегодня станет первым днём, веса и ступени вернутся к тем, что программа назначает на старте.
+        Сейчас: ${(() => { const d = PROGRAMS[S.settings.programId].days[dayIndex(S)]; return d.focus === 'rest' ? 'день отдыха' : d.name; })()}, старт ${prettyDate(S.settings.startDate)}.
+        Дневник и история не тронутся.</div>
       </div>
-      <span class="pill accent">→</span>
+      <button class="btn ghost sm" data-act="restart-block">Начать заново</button>
     </div>
   </div>
 
+  <div class="eyebrow" style="margin:22px 0 -6px">Гири</div>
   <h3>Гири в наличии</h3>
   <div class="card">
     <div class="chips">
@@ -1333,6 +1337,26 @@ function viewSettings() {
     <p class="muted small mt mb0">Ступень можно поставить руками, если уровень уже есть и ждать прогрессии незачем. После перерыва бери на 2–3 ступени ниже своего прошлого максимума: тест меряет разовый результат, а программе нужен повторяемый. Вес и ступень выбираются отдельно: сменил гирю — проверь, не высоко ли стоит ступень. Приложение само их не меняет.</p>
   </div>
 
+  <div class="eyebrow" style="margin:22px 0 -6px">Ежедневное</div>
+  <h3>Добавки</h3>
+  <div class="card tap" role="button" tabindex="0" data-act="supps-open">
+    <div class="row between">
+      <div class="grow">
+        <div class="sw-label">Витамины и добавки</div>
+        <div class="sw-hint">${(S.settings.supps || []).length ? 'принимаешь: ' + (S.settings.supps || []).length : 'что работает по данным МОК и ISSN'}</div>
+      </div>
+      <span class="pill accent">→</span>
+    </div>
+  </div>
+
+  <h3>Разгрузочная неделя</h3>
+  <div class="card">
+    <div class="chips">
+      ${DELOAD_OPTIONS.map(o => `<button class="chip ${(S.settings.deloadEvery ?? 6) === o.v ? 'on' : ''}" data-act="deload" data-v="${o.v}">${o.label}</button>`).join('')}
+    </div>
+    <p class="muted small mt mb0">Исследования не подтверждают, что разгрузка ускоряет рост силы. Здесь она нужна связкам и хвату при ежедневной работе. Раз в 4 недели — это четверть первого месяца в полсилы, поэтому по умолчанию раз в 6.</p>
+  </div>
+
   <h3>Настройки</h3>
   <div class="card">
     ${[
@@ -1350,32 +1374,13 @@ function viewSettings() {
       </div>`).join('')}
   </div>
 
+
+  <div class="eyebrow" style="margin:22px 0 -6px">Данные</div>
   <div class="card tight">
     <div class="row between">
       <span class="muted small">Версия приложения</span>
       <span class="muted small">${h(ВЕРСИЯ)}</span>
     </div>
-  </div>
-
-  <h3>Начать программу заново</h3>
-  <div class="card">
-    <div class="row between">
-      <div class="grow">
-        <div class="sw-label">Сброс к настройкам программы</div>
-        <div class="sw-hint">Сегодня станет первым днём, веса и ступени вернутся к тем, что программа назначает на старте.
-        Сейчас: ${(() => { const d = PROGRAMS[S.settings.programId].days[dayIndex(S)]; return d.focus === 'rest' ? 'день отдыха' : d.name; })()}, старт ${prettyDate(S.settings.startDate)}.
-        Дневник и история не тронутся.</div>
-      </div>
-      <button class="btn ghost sm" data-act="restart-block">Начать заново</button>
-    </div>
-  </div>
-
-  <h3>Разгрузочная неделя</h3>
-  <div class="card">
-    <div class="chips">
-      ${DELOAD_OPTIONS.map(o => `<button class="chip ${(S.settings.deloadEvery ?? 6) === o.v ? 'on' : ''}" data-act="deload" data-v="${o.v}">${o.label}</button>`).join('')}
-    </div>
-    <p class="muted small mt mb0">Исследования не подтверждают, что разгрузка ускоряет рост силы. Здесь она нужна связкам и хвату при ежедневной работе. Раз в 4 недели — это четверть первого месяца в полсилы, поэтому по умолчанию раз в 6.</p>
   </div>
 
   <h3>Данные</h3>
