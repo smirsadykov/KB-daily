@@ -1,17 +1,17 @@
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=68';
-import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON, restartProgram } from './store.js?v=68';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=69';
+import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON, restartProgram } from './store.js?v=69';
 import {
   planFor, applySession, summarizeItem, readinessMult, readinessLabel,
   waveIndex, weekIndex, wave, isDeload, acwr, streak, sessionLoad, tonnage, nextStepText, stepText, dayIndex,
   estimateMinutes, pairRealRest, paceFactor, blockStatus, nextBlockSuggestions, commitCycle
-} from './progression.js?v=68';
-import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=68';
-import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=68';
+} from './progression.js?v=69';
+import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=69';
+import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=69';
 
 // byId должен видеть и свои записи пользователя, поэтому оборачиваем
 const byId = (id) => suppById(id, S);
-import { timer, fmt, unlockAudio } from './timer.js?v=68';
-import { barChart, gauge } from './charts.js?v=68';
+import { timer, fmt, unlockAudio } from './timer.js?v=69';
+import { barChart, gauge } from './charts.js?v=69';
 
 // ── Мелкие помощники ─────────────────────────────────────────────────────────
 // Версия берётся из адреса самого модуля: она не может разойтись с тем,
@@ -469,7 +469,21 @@ function rpePicker(value, act, extra = '') {
   </div>`;
 }
 
+// «Следующий подход» — первый несделанный в порядке плана. Считается один
+// раз на перерисовку; строка получает класс next, а после отметки предыдущего
+// экран подъезжает к ней. Раньше на дне B стояли двенадцать одинаковых строк,
+// и где ты — приходилось искать глазами.
+let nextSetKey = null;
+function findNextSet(plan) {
+  for (let i = 0; i < plan.items.length; i++) {
+    const j = plan.items[i].sets.findIndex(x => !x.done);
+    if (j >= 0) return `${i}:${j}`;
+  }
+  return null;
+}
+
 function viewSession(plan) {
+  nextSetKey = findNextSet(plan);
   const totalSets = plan.items.reduce((a, i) => a + i.sets.length, 0);
   const doneSets = plan.items.reduce((a, i) => a + i.sets.filter(s => s.done).length, 0);
   const pct = totalSets ? Math.round(doneSets / totalSets * 100) : 0;
@@ -575,7 +589,7 @@ function viewSet(it, s, i, j, exLabel) {
     .filter(Boolean).join(' · ');
   const btn = s.done ? '✓ есть' : s.gs || s.sec >= 120 ? `▶ ${Math.round(s.sec / 60)} мин` : isTime ? `▶ ${s.sec}с` : 'Готово';
   return `
-  <div class="set ${s.done ? 'done' : ''}">
+  <div class="set ${s.done ? 'done' : ''}${`${i}:${j}` === nextSetKey ? ' next' : ''}" data-set="${i}:${j}">
     <div class="set-n">${j + 1}</div>
     <div class="set-main tap" role="button" tabindex="0" aria-label="Изменить подход ${j + 1}" data-act="set-edit" data-i="${i}" data-j="${j}">
       <div class="set-title">${title}</div>
@@ -1454,6 +1468,13 @@ const actions = {
     if (s.done) { s.actualReps = s.actualReps ?? s.reps; s.ts = Date.now(); }
     save();
     render();
+    // Подъезжаем к следующему подходу только когда идём вперёд. Снятие отметки
+    // или правка старого подхода экран не дёргают.
+    if (s.done) {
+      const el = document.querySelector('.set.next');
+      if (el) el.scrollIntoView({ block: 'center',
+        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    }
     if (!s.done || !S.settings.autoRest || it.emom) return;
     // в паре пауза короткая: отдых этому движению даст следующее упражнение
     const pair = (S.today.plan.pairs || []).find(p => p.a === i || p.b === i);

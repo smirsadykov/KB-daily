@@ -153,6 +153,10 @@ button { font-family: inherit; cursor: pointer; }
   border-radius: 12px; padding: 8px 8px 8px 12px; min-height: var(--tap);
 }
 .set.done { border-color: rgba(63,185,80,.5); background: rgba(63,185,80,.09); }
+/* следующий подход: к нему подъезжает экран после отметки предыдущего */
+.set.next { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.set.next .set-n { color: var(--accent); }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
 .set-n { width: 26px; color: var(--muted); font-size: 13px; font-weight: 700; flex: none; }
 .set-main { flex: 1; min-width: 0; }
 .set-title { font-size: 15px; font-weight: 600; }
