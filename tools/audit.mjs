@@ -1,5 +1,5 @@
 import { planFor, applySession, summarizeItem, estimateMinutes, tonnage, blockStatus, acwr, streak } from '../js/progression.js';
-import { PROGRAMS, TRACKS, EXERCISES } from '../js/data.js';
+import { PROGRAMS, TRACKS, EXERCISES, waveFor } from '../js/data.js';
 
 let fails = 0, checks = 0;
 const ok = (cond, msg) => { checks++; if (!cond) { fails++; console.log('  ✗ ' + msg); } };
@@ -782,6 +782,19 @@ console.log('\n=== 15. Волна не раздувает чужой прото�
       ok(r.диапазон === undefined, `${pid}: диапазон задан, но тест для него не объявлен`);
     }
   }
+
+  // (б8) Волна плоская: наращивания по неделям нет, есть только разгрузка.
+  //      Раньше объём рос до ×1,2 к пятой неделе — наша надстройка, которую
+  //      ни один автор не предписывал. Тест не даст ей вернуться незаметно.
+  for (const каждые of [4, 6, 8]) {
+    for (let w = 0; w < каждые * 2; w++) {
+      const v = waveFor(w, каждые);
+      const разгрузка = w % каждые === каждые - 1;
+      ok(v.deload === разгрузка, `waveFor(${w}, ${каждые}): разгрузка должна быть только на последней неделе блока`);
+      ok(v.mult === (разгрузка ? 0.55 : 1), `waveFor(${w}, ${каждые}): множитель ${v.mult}, ожидали ${разгрузка ? 0.55 : 1}`);
+    }
+  }
+  for (let w = 0; w < 10; w++) ok(waveFor(w, 0).mult === 1 && !waveFor(w, 0).deload, `waveFor(${w}, 0): без разгрузки объём всегда ×1`);
 
   // (в) постепенная замена гири в минутном режиме делит тяжёлые круги поровну
   for (const [pid, prog] of Object.entries(PROGRAMS)) {

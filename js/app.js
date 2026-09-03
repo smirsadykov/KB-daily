@@ -1,17 +1,17 @@
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=62';
-import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON, restartProgram } from './store.js?v=62';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=63';
+import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON, restartProgram } from './store.js?v=63';
 import {
   planFor, applySession, summarizeItem, readinessMult, readinessLabel,
   waveIndex, weekIndex, wave, isDeload, acwr, streak, sessionLoad, tonnage, nextStepText, stepText, dayIndex,
   estimateMinutes, pairRealRest, paceFactor, blockStatus, nextBlockSuggestions, commitCycle
-} from './progression.js?v=62';
-import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=62';
-import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=62';
+} from './progression.js?v=63';
+import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=63';
+import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=63';
 
 // byId должен видеть и свои записи пользователя, поэтому оборачиваем
 const byId = (id) => suppById(id, S);
-import { timer, fmt, unlockAudio } from './timer.js?v=62';
-import { barChart, gauge } from './charts.js?v=62';
+import { timer, fmt, unlockAudio } from './timer.js?v=63';
+import { barChart, gauge } from './charts.js?v=63';
 
 // ── Мелкие помощники ─────────────────────────────────────────────────────────
 // Версия берётся из адреса самого модуля: она не может разойтись с тем,
