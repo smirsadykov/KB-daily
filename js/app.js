@@ -1,17 +1,17 @@
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=66';
-import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON, restartProgram } from './store.js?v=66';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=67';
+import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON, restartProgram } from './store.js?v=67';
 import {
   planFor, applySession, summarizeItem, readinessMult, readinessLabel,
   waveIndex, weekIndex, wave, isDeload, acwr, streak, sessionLoad, tonnage, nextStepText, stepText, dayIndex,
   estimateMinutes, pairRealRest, paceFactor, blockStatus, nextBlockSuggestions, commitCycle
-} from './progression.js?v=66';
-import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=66';
-import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=66';
+} from './progression.js?v=67';
+import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=67';
+import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=67';
 
 // byId должен видеть и свои записи пользователя, поэтому оборачиваем
 const byId = (id) => suppById(id, S);
-import { timer, fmt, unlockAudio } from './timer.js?v=66';
-import { barChart, gauge } from './charts.js?v=66';
+import { timer, fmt, unlockAudio } from './timer.js?v=67';
+import { barChart, gauge } from './charts.js?v=67';
 
 // ── Мелкие помощники ─────────────────────────────────────────────────────────
 // Версия берётся из адреса самого модуля: она не может разойтись с тем,
@@ -1559,7 +1559,7 @@ const actions = {
         exId: it.exId, trackId: it.trackId, kind: it.kind, name: it.name, weight: it.weight,
         plannedSets: sum.totalSets, doneSets: sum.doneSets,
         plannedReps: sum.plannedReps, doneReps: sum.doneReps, doneLoadReps: sum.doneLoadReps, doneSec: sum.doneSec,
-        complete: sum.complete, rpe: finishDraft.rpe[it.exId] ?? 7, step: it.step, maxStep: it.maxStep,
+        complete: sum.complete, rpe: finishDraft.rpe[it.exId] ?? finishDraft.rpe['*'] ?? 7, step: it.step, maxStep: it.maxStep,
         perCycle: it.perCycle, cycleDays: it.cycleDays
       };
     }).filter(e => e.doneSets > 0);
@@ -1789,9 +1789,26 @@ const actions = {
 let finishDraft = { rpe: {}, mins: 15, notes: '' };
 
 function finishSheetHTML(items, mins) {
+  // В программах без авторской прогрессии оценка по каждому упражнению ни на что
+  // не влияет: движок там только записывает. Спрашивать три раза то, что не
+  // используется, — лишняя работа после тренировки. Там одна оценка на всё,
+  // и при сохранении она ставится каждому упражнению. В десяти программах
+  // с прогрессией оценка остаётся по упражнениям — по ним движок и предлагает.
+  const однаОценка = !!PROGRAMS[S.settings.programId]?.noProgression;
   return `
   <h2>Насколько было тяжело?</h2>
-  <p class="muted small">Ориентируйся на то, сколько ещё смог бы сделать сверху. От этого ответа зависит, добавлю я нагрузку в следующий раз или оставлю как есть — отвечай честно, занижать смысла нет.</p>
+  ${однаОценка ? `
+  <p class="muted small">Ориентируйся на то, сколько ещё смог бы сделать сверху. В этой программе нагрузку двигаешь ты сам, так что оценка идёт в дневник — чтобы видеть, как заходит неделя за неделей.</p>
+  <div class="card tight" style="margin-bottom:12px">
+    ${items.map(({ it, sum }) => `
+      <div class="row between" style="padding:4px 0">
+        <span class="small">${h(it.name)}</span>
+        <span class="pill ${sum.complete ? 'ok' : 'warn'}">${sum.doneSets}/${sum.totalSets}</span>
+      </div>`).join('')}
+  </div>
+  ${rpePicker(finishDraft.rpe['*'], 'rpe-pick', ' data-ex="*"')}
+  ` : `
+  <p class="muted small">Ориентируйся на то, сколько ещё смог бы сделать сверху. От этого ответа зависит, предложу я прибавить в следующий раз или нет — отвечай честно, занижать смысла нет.</p>
   ${items.map(({ it, sum }) => `
     <div style="margin-bottom:16px">
       <div class="row between" style="margin-bottom:6px">
@@ -1800,6 +1817,7 @@ function finishSheetHTML(items, mins) {
       </div>
       ${rpePicker(finishDraft.rpe[it.exId], 'rpe-pick', ` data-ex="${it.exId}"`)}
     </div>`).join('')}
+  `}
   <label class="field"><span>Сколько минут заняло</span><input type="number" inputmode="numeric" id="finMins" value="${mins}"></label>
   <label class="field"><span>Заметка (не обязательно)</span><textarea id="finNotes" placeholder="Например: правое плечо подтягивало"></textarea></label>
   <button class="btn" data-act="save-session">Сохранить тренировку</button>
