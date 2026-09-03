@@ -1,17 +1,17 @@
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=67';
-import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON, restartProgram } from './store.js?v=67';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=68';
+import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON, restartProgram } from './store.js?v=68';
 import {
   planFor, applySession, summarizeItem, readinessMult, readinessLabel,
   waveIndex, weekIndex, wave, isDeload, acwr, streak, sessionLoad, tonnage, nextStepText, stepText, dayIndex,
   estimateMinutes, pairRealRest, paceFactor, blockStatus, nextBlockSuggestions, commitCycle
-} from './progression.js?v=67';
-import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=67';
-import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=67';
+} from './progression.js?v=68';
+import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=68';
+import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=68';
 
 // byId должен видеть и свои записи пользователя, поэтому оборачиваем
 const byId = (id) => suppById(id, S);
-import { timer, fmt, unlockAudio } from './timer.js?v=67';
-import { barChart, gauge } from './charts.js?v=67';
+import { timer, fmt, unlockAudio } from './timer.js?v=68';
+import { barChart, gauge } from './charts.js?v=68';
 
 // ── Мелкие помощники ─────────────────────────────────────────────────────────
 // Версия берётся из адреса самого модуля: она не может разойтись с тем,
@@ -1559,7 +1559,10 @@ const actions = {
         exId: it.exId, trackId: it.trackId, kind: it.kind, name: it.name, weight: it.weight,
         plannedSets: sum.totalSets, doneSets: sum.doneSets,
         plannedReps: sum.plannedReps, doneReps: sum.doneReps, doneLoadReps: sum.doneLoadReps, doneSec: sum.doneSec,
-        complete: sum.complete, rpe: finishDraft.rpe[it.exId] ?? finishDraft.rpe['*'] ?? 7, step: it.step, maxStep: it.maxStep,
+        // Общая оценка главнее посева: finish() заранее ставит каждому упражнению 7,
+        // и «?? rpe['*']» после этого никогда не срабатывало — 7 не пустота.
+        // В листах по упражнениям rpe['*'] не задаётся, там порядок ничего не меняет.
+        complete: sum.complete, rpe: finishDraft.rpe['*'] ?? finishDraft.rpe[it.exId] ?? 7, step: it.step, maxStep: it.maxStep,
         perCycle: it.perCycle, cycleDays: it.cycleDays
       };
     }).filter(e => e.doneSets > 0);
