@@ -1,17 +1,17 @@
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=61';
-import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON, restartProgram } from './store.js?v=61';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=62';
+import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON, restartProgram } from './store.js?v=62';
 import {
   planFor, applySession, summarizeItem, readinessMult, readinessLabel,
   waveIndex, weekIndex, wave, isDeload, acwr, streak, sessionLoad, tonnage, nextStepText, stepText, dayIndex,
   estimateMinutes, pairRealRest, paceFactor, blockStatus, nextBlockSuggestions, commitCycle
-} from './progression.js?v=61';
-import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=61';
-import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=61';
+} from './progression.js?v=62';
+import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=62';
+import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=62';
 
 // byId должен видеть и свои записи пользователя, поэтому оборачиваем
 const byId = (id) => suppById(id, S);
-import { timer, fmt, unlockAudio } from './timer.js?v=61';
-import { barChart, gauge } from './charts.js?v=61';
+import { timer, fmt, unlockAudio } from './timer.js?v=62';
+import { barChart, gauge } from './charts.js?v=62';
 
 // ── Мелкие помощники ─────────────────────────────────────────────────────────
 // Версия берётся из адреса самого модуля: она не может разойтись с тем,
@@ -1002,7 +1002,7 @@ function viewHistory() {
     const t = tonnage(s);
     return `<div class="list-item tap" role="button" tabindex="0" data-act="open-session" data-id="${s.id}" style="align-items:flex-start;flex-direction:column;gap:4px">
       <div class="row between" style="width:100%">
-        <span class="ex-name">${h(s.dayName)}</span>
+        <span class="ex-name">${h(s.dayName)}${s.programId && PROGRAMS[s.programId] ? `<span class="muted small" style="font-weight:400"> · ${h(PROGRAMS[s.programId].name)}</span>` : ''}</span>
         <span class="muted small">${prettyDate(s.date)}</span>
       </div>
       <div class="muted small">${s.entries.length} ${plural(s.entries.length, 'упражнение', 'упражнения', 'упражнений')} · ${t ? t.toLocaleString('ru-RU') + ' кг · ' : ''}${s.durationMin} мин · ${h(rpeLabel(s.sessionRpe).toLowerCase())}</div>
@@ -1086,6 +1086,21 @@ function viewProgress() {
     <p class="muted small mb0">Свежая неделя против привычной за месяц. Это не про травмы: как предиктор травм этот показатель раскритикован в науке. Просто показывает, насколько резко ты прибавил.</p>
   </div>
 
+  ${PROGRAMS[S.settings.programId].noProgression ? `
+  <h3>Нагрузка</h3>
+  <div class="card">
+    <table class="tbl">
+      <tr><th>Упражнение</th><th>Гиря</th></tr>
+      ${[...usedEx].map(key => {
+        const [exId] = key.split('|');
+        const p = S.progress[exId];
+        if (!p || (exId === 'tgu' && !S.settings.tgu)) return '';
+        return `<tr><td>${h(EXERCISES[exId].name)}</td><td>${EXERCISES[exId].double ? 'пара ' : ''}${p.weight}${EXERCISES[exId].double ? '' : ' кг'}</td></tr>`;
+      }).join('')}
+    </table>
+    <p class="muted small mt mb0">В этой программе лестницы нет: объём задан автором и не меняется. Единственная настройка — гиря, и меняешь её ты.</p>
+  </div>
+  ` : `
   <h3>Лестница прогрессии</h3>
   <div class="card">
     <table class="tbl">
@@ -1105,6 +1120,7 @@ function viewProgress() {
     </table>
     <p class="muted small mt mb0">Ступень и гирю приложение не меняет — это делаешь ты. Там, где прогрессию предусмотрел автор программы, оно подскажет после тренировки, что можно прибавить; в остальных молчит, потому что объём в них задан и не растёт.</p>
   </div>
+  `}
 
   ${(() => {
     const b = blockStatus(S);
