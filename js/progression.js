@@ -1,6 +1,6 @@
 // Движок прогрессии: что делать сегодня и что менять после тренировки.
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=72';
-import { nextBell, prevBell, todayISO } from './store.js?v=72';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, WARMUP, COOLDOWN } from './data.js?v=73';
+import { nextBell, prevBell, todayISO } from './store.js?v=73';
 
 const DAY = 86400000;
 
@@ -789,7 +789,10 @@ export function tonnage(session) {
     if (e.kind === 'time') continue;
     // Двугиревые движения поднимают две гири: в дне A на паре 16 в каждом
     // повторе 32 кг, а не 16. Раньше тоннаж занижался ровно вдвое.
-    const гирь = EXERCISES[e.exId]?.double ? 2 : 1;
+    // ABC не помечен двугиревым, потому что честно идёт и одной гирей, но
+    // когда вес есть парой, круг делается двумя — это записано в самой
+    // записи (doubled). Старые записи без флага считаются одной гирей.
+    const гирь = EXERCISES[e.exId]?.double || e.doubled ? 2 : 1;
     t += (e.doneLoadReps ?? e.doneReps ?? 0) * (e.weight || 0) * гирь;
   }
   return t;

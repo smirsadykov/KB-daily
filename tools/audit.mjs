@@ -699,9 +699,9 @@ console.log('\n=== 15. Волна не раздувает чужой прото�
       for (const it of p.items) {
         if (it.kind === 'time') continue;
         const sum = summarizeItem(it);
-        const гирь = EXERCISES[it.exId].double ? 2 : 1;
+        const гирь = EXERCISES[it.exId].double || it.doubled ? 2 : 1;
         const ожидание = it.sets.reduce((a, x) => a + (x.loadReps ?? x.reps ?? 0) * (x.weight || 0) * гирь, 0);
-        const факт = tonnage({ entries: [{ exId: it.exId, kind: it.kind, weight: it.weight,
+        const факт = tonnage({ entries: [{ exId: it.exId, kind: it.kind, weight: it.weight, doubled: !!it.doubled,
                                            doneReps: sum.doneReps, doneLoadReps: sum.doneLoadReps }] });
         // тоннаж считается по единому весу позиции, поэтому сверяем на движениях
         // без частичной замены гири — там веса подходов разные по замыслу

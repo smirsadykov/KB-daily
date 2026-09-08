@@ -1,17 +1,17 @@
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=72';
-import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON, restartProgram } from './store.js?v=72';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=73';
+import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON, restartProgram } from './store.js?v=73';
 import {
   planFor, applySession, summarizeItem, readinessMult, readinessLabel,
   waveIndex, weekIndex, wave, isDeload, acwr, streak, sessionLoad, tonnage, nextStepText, stepText, dayIndex,
   estimateMinutes, pairRealRest, paceFactor, blockStatus, nextBlockSuggestions, commitCycle
-} from './progression.js?v=72';
-import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=72';
-import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=72';
+} from './progression.js?v=73';
+import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=73';
+import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=73';
 
 // byId должен видеть и свои записи пользователя, поэтому оборачиваем
 const byId = (id) => suppById(id, S);
-import { timer, fmt, unlockAudio } from './timer.js?v=72';
-import { barChart, gauge } from './charts.js?v=72';
+import { timer, fmt, unlockAudio } from './timer.js?v=73';
+import { barChart, gauge } from './charts.js?v=73';
 
 // ── Мелкие помощники ─────────────────────────────────────────────────────────
 // Версия берётся из адреса самого модуля: она не может разойтись с тем,
@@ -1603,6 +1603,8 @@ const actions = {
       const sum = summarizeItem(it);
       return {
         exId: it.exId, trackId: it.trackId, kind: it.kind, name: it.name, weight: it.weight,
+        // круг шёл двумя гирями (ABC на паре) — тоннажу нужно знать это по факту
+        doubled: !!it.doubled,
         plannedSets: sum.totalSets, doneSets: sum.doneSets,
         plannedReps: sum.plannedReps, doneReps: sum.doneReps, doneLoadReps: sum.doneLoadReps, doneSec: sum.doneSec,
         // Общая оценка главнее посева: finish() заранее ставит каждому упражнению 7,
