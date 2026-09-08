@@ -1,17 +1,17 @@
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=71';
-import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON, restartProgram } from './store.js?v=71';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=72';
+import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON, restartProgram } from './store.js?v=72';
 import {
   planFor, applySession, summarizeItem, readinessMult, readinessLabel,
   waveIndex, weekIndex, wave, isDeload, acwr, streak, sessionLoad, tonnage, nextStepText, stepText, dayIndex,
   estimateMinutes, pairRealRest, paceFactor, blockStatus, nextBlockSuggestions, commitCycle
-} from './progression.js?v=71';
-import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=71';
-import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=71';
+} from './progression.js?v=72';
+import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=72';
+import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=72';
 
 // byId должен видеть и свои записи пользователя, поэтому оборачиваем
 const byId = (id) => suppById(id, S);
-import { timer, fmt, unlockAudio } from './timer.js?v=71';
-import { barChart, gauge } from './charts.js?v=71';
+import { timer, fmt, unlockAudio } from './timer.js?v=72';
+import { barChart, gauge } from './charts.js?v=72';
 
 // ── Мелкие помощники ─────────────────────────────────────────────────────────
 // Версия берётся из адреса самого модуля: она не может разойтись с тем,
@@ -271,7 +271,7 @@ function viewDoneToday(сессии) {
   <div class="card accent">
     <div class="row between">
       <div class="grow">
-        <div class="eyebrow-sm muted small">Сегодня сделано</div>
+        <div class="eyebrow-sm muted small">Сегодня сделано${(() => { const c = programWorkoutCount(); return c ? ` · ${Math.min(c.done, c.total)} из ${c.total}` : ''; })()}</div>
         <div class="ex-name" style="font-size:19px">${сессии.map(x => h(x.dayName || 'тренировка')).join(' + ')}</div>
       </div>
       <span class="pill accent">✓</span>
@@ -362,7 +362,11 @@ function viewReadiness(preview, wave, dayOverride = null) {
   return `
   <div class="card">
     <div class="row between">
-      <div><div class="ex-name">${h(preview.dayName)}</div><div class="muted small">${h(preview.programName)} · день ${preview.dayIndex + 1} из ${PROGRAMS[preview.programId].days.length}</div></div>
+      <div><div class="ex-name">${h(preview.dayName)}</div><div class="muted small">${h(preview.programName)} · ${(() => {
+        const c = programWorkoutCount();
+        if (!c) return `день ${preview.dayIndex + 1} из ${PROGRAMS[preview.programId].days.length}`;
+        return c.done >= c.total ? `цикл из ${c.total} тренировок пройден, дальше по кругу` : `тренировка ${c.done + 1} из ${c.total}`;
+      })()}</div></div>
       <span class="pill ${preview.deload ? 'warn' : 'accent'}">${preview.deload ? 'разгрузка' : wave.name.split('·')[1]?.trim() || ''}</span>
     </div>
     <p class="muted small mt mb0">${h(wave.hint)}</p>
@@ -435,6 +439,18 @@ function viewReadiness(preview, wave, dayOverride = null) {
 // Весь цикл программы одной строкой, с отметкой, где ты сейчас. Раньше был
 // только намёк «дальше: то-то», и вопрос «почему сегодня отдых» оставался без
 // ответа: расписание было спрятано внутри программы и на экран не попадало.
+// Программы с циклом на N тренировок (Easy Strength: 40). Считаем дни
+// с тренировками по этой программе от старта — как и цикл, по дням, а не
+// по записям: две сессии за день это одна тренировка из сорока.
+function programWorkoutCount() {
+  const prog = PROGRAMS[S.settings.programId];
+  if (!prog.totalWorkouts) return null;
+  const from = S.settings.startDate || '';
+  const дни = new Set(S.sessions.filter(x => x.type !== 'rest' && x.date >= from
+    && (x.programId === undefined || x.programId === S.settings.programId)).map(x => x.date));
+  return { done: дни.size, total: prog.totalWorkouts };
+}
+
 function nextDaysHint(plan) {
   const prog = PROGRAMS[plan.programId];
   const цепочка = prog.days.map((d, i) => {
