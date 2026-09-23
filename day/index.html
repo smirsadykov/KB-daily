@@ -293,6 +293,7 @@ header{padding-top:0}
     <section id="trainsec">
       <div class="shead"><h2>Тренировка</h2><div class="meta" id="wmeta"></div></div>
       <button type="button" class="kbstatus" id="kbstatus"></button>
+      <ul><li class="row" id="bjjrow"><label><input type="checkbox" id="bjj"><span class="txt">БЖЖ</span></label></li></ul>
     </section>
 
     <section>
@@ -787,8 +788,10 @@ function renderPips(){
     ["Привычки",hL.filter(l=>hd[l.key]).length,hL.length],
     ["Задачи",tasks.filter(t=>t.done).length,tasks.length]
   ];
-  const train=st&&TRAIN_WORD[st.state]
-    ?'<div class="pgroup'+(st.state==="done"?"":" none")+'"><span class="plabel">Тренировка</span><span class="pcount">'+TRAIN_WORD[st.state]+"</span></div>":"";
+  const bjj=!!(d.workout||{}).BJJ, kbDone=!!st&&st.state==="done";
+  const word=bjj?(kbDone?"гиря + БЖЖ":"БЖЖ"):(st&&TRAIN_WORD[st.state]);
+  const train=word
+    ?'<div class="pgroup'+(kbDone||bjj?"":" none")+'"><span class="plabel">Тренировка</span><span class="pcount">'+word+"</span></div>":"";
   $("pips").innerHTML=groups.map((g,i)=>(i===1?train:"")+(()=>{
     if(!g[2]) return '<div class="pgroup none"><span class="plabel">'+g[0]+'</span><span class="pcount">нет</span></div>';
     let seg="";
@@ -825,15 +828,21 @@ function trainingOn(s){
 }
 const TRAIN_WORD={done:"сделана",active:"идёт",todo:"в плане",rest:"отдых",none:"не было"};
 function renderWorkout(){
-  const st=trainingOn(state.date);
-  $("trainsec").hidden=!st; if(!st) return;
+  const s=state.date, st=trainingOn(s), bjj=!!(day(s).workout||{}).BJJ;
+  // BJJ happens away from the app, so it's ticked by hand — under the same "BJJ"
+  // key the old Workout block used, so days ticked there still count, and the
+  // month view already marks any day with a training tick
+  $("bjj").checked=bjj; $("bjjrow").classList.toggle("done",bjj);
   const b=$("kbstatus");
+  b.hidden=!st;
+  $("wmeta").textContent=st?TRAIN_WORD[st.state]||"":"";
+  if(!st) return;
   b.className="kbstatus "+st.state;
   b.innerHTML='<span class="mark">'+({done:"✓",active:"•",rest:"–",none:"–",setup:"!"}[st.state]||"")+'</span>'
     +'<span><span class="t">'+esc(st.title)+'</span>'+(st.detail?'<br><span class="d">'+esc(st.detail)+'</span>':"")+'</span>'
     +'<span class="go">›</span>';
-  $("wmeta").textContent=TRAIN_WORD[st.state]||"";
 }
+$("bjj").onchange=e=>saveDay(state.date,{workout:Object.assign({},day(state.date).workout,{BJJ:e.target.checked})});
 $("kbstatus").onclick=()=>{ const h=host(); if(h&&h.kbOpenTraining) h.kbOpenTraining() };
 
 const daysAgo=k=>Math.round((parseDate(iso(new Date()))-parseDate(k))/864e5);
