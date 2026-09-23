@@ -17,6 +17,7 @@
     { "src": "./icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }
   ],
   "shortcuts": [
+    { "name": "День", "url": "./" },
     { "name": "Тренировка", "url": "./?tab=today" },
     { "name": "Таймер", "url": "./?tab=timer" }
   ]

@@ -1,21 +1,23 @@
 // Офлайн-кэш. Меняешь код — подними версию, и обновление приедет само.
-const VERSION = 'kbd-v73';
+const VERSION = 'kbd-v74';
 // Версия в адресе файла — единственный способ гарантированно пробить
 // старый кэш на уже установленном приложении. Меняешь css или app.js —
 // подними ?v= здесь и в index.html.
 const ASSETS = [
   './',
   './index.html',
-  './css/styles.css?v=73',
-  './js/app.js?v=73',
-  './js/data.js?v=73',
-  './js/store.js?v=73',
-  './js/progression.js?v=73',
-  './js/timer.js?v=73',
-  './js/charts.js?v=73',
-  './js/assessment.js?v=73',
-  './js/supplements.js?v=73',
+  './css/styles.css?v=74',
+  './js/app.js?v=74',
+  './js/data.js?v=74',
+  './js/store.js?v=74',
+  './js/progression.js?v=74',
+  './js/timer.js?v=74',
+  './js/charts.js?v=74',
+  './js/assessment.js?v=74',
+  './js/supplements.js?v=74',
   './manifest.webmanifest',
+  './day/',
+  './day/index.html',
   './icons/icon.svg',
   './icons/icon-192.png',
   './icons/icon-512.png'
@@ -34,10 +36,13 @@ self.addEventListener('install', (e) => {
   );
 });
 
+// Удаляем только свои старые кэши. На smirsadykov.github.io у всех приложений
+// одно хранилище кэшей: «всё, что не моё» стирало офлайн-копию соседнего
+// приложения при каждом обновлении — а его воркер в ответ стирал нашу.
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k !== VERSION).map(k => caches.delete(k))))
+      .then(keys => Promise.all(keys.filter(k => k.startsWith('kbd-') && k !== VERSION).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
@@ -57,7 +62,10 @@ self.addEventListener('fetch', (e) => {
           caches.open(VERSION).then(c => c.put(req, copy));
           return res;
         })
-        .catch(() => caches.match(req).then(r => r || caches.match('./index.html')))
+        // «День» открывается в рамке: без сети его запасная копия — ./day/,
+        // а не главная страница, иначе в рамке оказалось бы всё приложение целиком
+        .catch(() => caches.match(req).then(r => r ||
+          caches.match(url.pathname.includes('/day/') ? './day/index.html' : './index.html')))
     );
     return;
   }

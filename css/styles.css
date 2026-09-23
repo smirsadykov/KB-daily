@@ -202,6 +202,18 @@ details.tips[open] summary::before { content: '－ '; }
 .restbar-time { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .restbar button { background: rgba(255,255,255,.2); border: none; color: #fff; border-radius: 10px; min-height: 36px; padding: 0 12px; font-weight: 700; font-size: 14px; }
 
+/* ── «День» в рамке ──────────────────────────────────────
+   Своя шапка у «Дня» есть, поэтому верхняя панель здесь прячется, а рамка
+   встаёт от выреза до вкладок. Высота задаётся явно: у iframe нет «растянуть
+   между top и bottom», как у обычного блока. --tabs-h пишет app.js по факту. */
+.day-frame {
+  position: fixed; left: 0; right: 0; z-index: 10;
+  top: env(safe-area-inset-top);
+  width: 100%; height: calc(100dvh - env(safe-area-inset-top) - var(--tabs-h, 64px));
+  border: 0; background: var(--bg);
+}
+body[data-tab="day"] .topbar { display: none; }
+
 /* ── Нижние вкладки ─────────────────────────────────────── */
 .tabs {
   position: fixed; bottom: 0; left: 0; right: 0; z-index: 40;

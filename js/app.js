@@ -1,17 +1,17 @@
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=73';
-import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON, restartProgram } from './store.js?v=73';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=74';
+import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON, restartProgram } from './store.js?v=74';
 import {
   planFor, applySession, summarizeItem, readinessMult, readinessLabel,
   waveIndex, weekIndex, wave, isDeload, acwr, streak, sessionLoad, tonnage, nextStepText, stepText, dayIndex,
   estimateMinutes, pairRealRest, paceFactor, blockStatus, nextBlockSuggestions, commitCycle
-} from './progression.js?v=73';
-import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=73';
-import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=73';
+} from './progression.js?v=74';
+import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=74';
+import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=74';
 
 // byId должен видеть и свои записи пользователя, поэтому оборачиваем
 const byId = (id) => suppById(id, S);
-import { timer, fmt, unlockAudio } from './timer.js?v=73';
-import { barChart, gauge } from './charts.js?v=73';
+import { timer, fmt, unlockAudio } from './timer.js?v=74';
+import { barChart, gauge } from './charts.js?v=74';
 
 // ── Мелкие помощники ─────────────────────────────────────────────────────────
 // Версия берётся из адреса самого модуля: она не может разойтись с тем,
@@ -24,7 +24,7 @@ const h = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 const plural = (n, a, b, c) => { const m = n % 100; const k = n % 10; return m > 10 && m < 20 ? c : k === 1 ? a : k > 1 && k < 5 ? b : c; };
 
 let S = getState();
-let tab = 'today';
+let tab = 'day';
 let toastTimer = null;
 
 function toast(msg) {
@@ -77,6 +77,20 @@ function частотаПрограммы(prog) {
 }
 
 function render() {
+  // «День» — рамка, которая живёт между переключениями: пересоздавать её
+  // на каждый render значило бы терять прокрутку и открытые поля.
+  const onDay = tab === 'day';
+  document.body.dataset.tab = tab;
+  const frame = $('#dayFrame');
+  frame.hidden = !onDay;
+  $('#screen').hidden = onDay;
+  if (onDay) {
+    if (!frame.getAttribute('src')) frame.src = './day/';
+    else frame.contentWindow?.render?.();          // статус тренировки мог смениться
+    $$('.tab').forEach(b => b.classList.toggle('is-active', b.dataset.tab === tab));
+    updateRestbar();
+    return;
+  }
   const screen = $('#screen');
   const key = viewKey();
   const sameView = key === lastViewKey;
@@ -210,54 +224,10 @@ function viewToday() {
       </div>
     </div>` : '';
 
-  if (preview.isRest) return banner + suppCard() + viewRestDay(preview);
-  return banner + suppCard() + viewReadiness(preview, w);
+  if (preview.isRest) return banner + viewRestDay(preview);
+  return banner + viewReadiness(preview, w);
 }
 
-
-// Карточка добавок на главном экране. Держим её вверху и всегда видимой:
-// в разделе «Ещё» её никто не находит, а креатин и бета-аланин работают
-// только от регулярности.
-function suppCard() {
-  const chosen = (S.settings.supps || []).filter(id => byId(id));
-  if (!chosen.length) {
-    return `
-    <div class="card tight tap" role="button" tabindex="0" data-act="supps-open">
-      <div class="row between">
-        <div class="grow">
-          <div class="ex-name" style="font-size:15px">Добавки</div>
-          <div class="muted small">Выбери, что принимаешь — буду напоминать здесь</div>
-        </div>
-        <span class="pill">настроить</span>
-      </div>
-    </div>`;
-  }
-  const log = suppsToday();
-  const left = chosen.filter(id => !log[id]).length;
-  return `
-  <div class="card tight">
-    <div class="row between" style="margin-bottom:10px">
-      <div class="grow">
-        <div class="ex-name" style="font-size:15px">Добавки на сегодня</div>
-        <div class="muted small">${left ? `осталось ${left} из ${chosen.length}` : 'всё принято'}</div>
-      </div>
-      ${left ? '' : '<span class="pill ok">✓</span>'}
-    </div>
-    <div class="chips">
-      ${chosen.map(id => {
-        const sp = byId(id);
-        const done = !!log[id];
-        return `<button class="chip ${done ? 'on' : ''}" data-act="supp-take" data-id="${id}"
-          title="${h(doseFor(sp, S.settings.bodyWeight))}">${done ? '✓ ' : ''}${h(sp.name)}</button>`;
-      }).join('')}
-    </div>
-    <div class="muted small" style="margin-top:8px">
-      ${chosen.map(id => byId(id)).filter(sp => !log[sp.id])
-        .map(sp => { const d = doseFor(sp, S.settings.bodyWeight); return d ? `${h(sp.name)}: ${h(d)}` : h(sp.name); })
-        .join(' · ') || 'Нажми ещё раз, чтобы снять отметку'}
-    </div>
-  </div>`;
-}
 
 // Экран после тренировки: что сделано сегодня и что будет завтра.
 // Раньше план строился заново и выглядел несделанным — человек открывал
@@ -288,8 +258,6 @@ function viewDoneToday(сессии) {
       </div>
     </div>
   </div>
-
-  ${suppCard()}
 
   <button class="btn ghost" data-act="train-again">Тренироваться ещё раз</button>
   <p class="muted small center mt">Цикл от второй тренировки за день не сдвинется: он считает дни, а не записи.</p>`;
@@ -512,8 +480,6 @@ function viewSession(plan) {
     </div>
     <div class="ex-prog"><i style="width:${pct}%"></i></div>
   </div>
-
-  ${suppCard()}
 
   ${plan.warmup.length ? `
   <details class="card tight tips" data-key="warmup" ${doneSets === 0 ? 'open' : ''}>
@@ -844,7 +810,7 @@ function suppAdherence(days = 30) {
 }
 
 function viewSupps() {
-  setTop('Добавки', 'Что реально работает и что ты принял');
+  setTop('Добавки', 'Что реально работает, дозы и источники');
   const chosen = S.settings.supps || [];
   const log = suppsToday();
   const adh = suppAdherence();
@@ -852,6 +818,9 @@ function viewSupps() {
   for (const sp of SUPPLEMENTS) groups[sp.tier].push(sp);
 
   return `
+  <div class="card tight">
+    <p class="small mb0">Приём отмечается во вкладке «День», вместе с курсом 30/30. Здесь — справка.</p>
+  </div>
   <div class="card">
     <p class="muted small mb0">${h(DIET_FIRST)}</p>
   </div>
@@ -1944,6 +1913,34 @@ document.addEventListener('change', (e) => {
 });
 
 timer.onUpdate = () => { updateRestbar(); if (tab === 'timer') updateTimerScreen(); };
+
+// ── Связь с «Днём» ───────────────────────────────────────────────────────────
+// «День» живёт в рамке на том же сайте и спрашивает отсюда, что с тренировкой.
+// Ответ — тот же разбор, что делает экран «Гиря»: идёт, сделана, отдых, в плане.
+window.kbTodayStatus = () => {
+  if (!S.onboarded) return { state: 'setup', title: 'Гиря не настроена', detail: 'открой вкладку «Гиря»' };
+  ensureToday();
+  const date = todayISO();
+  const prog = PROGRAMS[S.settings.programId];
+  if (S.today) return { state: 'active', title: S.today.plan?.dayName || 'Тренировка', detail: 'идёт сейчас' };
+  const сделано = S.sessions.filter(x => x.date === date && x.type !== 'rest'
+    && (x.programId === undefined || x.programId === S.settings.programId));
+  if (сделано.length) return {
+    state: 'done',
+    title: сделано.map(x => x.dayName || 'тренировка').join(' + '),
+    // тоннаж только если он есть: у тренировки с собственным весом его нет, и «0 кг» читалось бы как ошибка
+    detail: сделано.map(x => { const t = tonnage(x); return (t ? `${t.toLocaleString('ru-RU')} кг · ` : '') + `${x.durationMin} мин`; }).join('; '),
+  };
+  const plan = planFor(S, date, null);
+  if (plan.isRest) return { state: 'rest', title: 'День отдыха', detail: prog?.name || '' };
+  return { state: 'todo', title: plan.dayName || 'Тренировка', detail: prog?.name || '' };
+};
+window.kbTrainedOn = (iso) => S.sessions.some(x => x.date === iso && x.type !== 'rest');
+window.kbOpenTraining = () => { tab = 'today'; render(); };
+
+const setTabsHeight = () => document.documentElement.style.setProperty('--tabs-h', $('.tabs').offsetHeight + 'px');
+setTabsHeight();
+addEventListener('resize', setTabsHeight);
 
 // ── Старт ────────────────────────────────────────────────────────────────────
 timer.configure({ sound: S.settings.sound, vibrate: S.settings.vibrate, keepAwake: S.settings.wakeLock });

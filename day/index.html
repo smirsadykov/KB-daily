@@ -1,0 +1,1234 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>День</title>
+<style>
+:root{
+  --bg:#0d1117; --surface:#171e27; --surface-2:#1e2733; --line:#2a3441;
+  --ink:#e8edf3; --ink-2:#b3bfcc; --ink-3:#8b98a8;
+  --accent:#ff7a1a; --accent-ink:#ff9a4d; --accent-soft:rgba(255,122,26,.15);
+  --now:#ff7a1a; --now-soft:rgba(255,122,26,.13); --warn-soft:rgba(210,153,34,.16);
+  --good:#3fb950; --warn:#d29922; --crit:#f0563f; --on-accent:#fff;
+  --r:10px;
+  --f-display:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --f-body:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --f-mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme:light){
+  :root{
+    --bg:#f5f6f8; --surface:#ffffff; --surface-2:#f0f2f5; --line:#e2e6ec;
+    --ink:#12181f; --ink-2:#3d4a58; --ink-3:#667486;
+    --accent:#e3620a; --accent-ink:#b84f07; --accent-soft:rgba(227,98,10,.12);
+    --now:#e3620a; --now-soft:rgba(227,98,10,.1); --warn-soft:rgba(210,153,34,.15);
+    --warn:#9a6700; --crit:#cf222e;
+  }
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:var(--f-display);margin:0;text-wrap:balance}
+button,input,textarea,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+.wrap{max-width:1120px;margin:0 auto;padding:0 18px 56px}
+
+/* ---- header ---- */
+header{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
+.hbar{max-width:1120px;margin:0 auto;padding:14px 18px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.brand{font-family:var(--f-display);font-weight:700;font-size:17px;letter-spacing:-.02em}
+.brand span{color:var(--accent);font-family:var(--f-mono);font-weight:500}
+.datenav{display:flex;align-items:center;gap:2px;margin-left:auto}
+.tools{display:flex;align-items:center;gap:2px}
+.datelabel{font-family:var(--f-display);font-weight:600;font-size:19px;letter-spacing:-.015em;
+  min-width:200px;text-align:center;font-variant-numeric:tabular-nums;color:var(--ink);white-space:nowrap}
+.ghost{background:none;border:1px solid transparent;border-radius:var(--r);padding:5px 9px;cursor:pointer;color:var(--ink-2)}
+.ghost:hover{background:var(--surface-2);color:var(--ink)}
+#syncbtn{font-family:var(--f-mono);font-size:12px;letter-spacing:.02em}
+#syncbtn[data-state="ok"]{color:var(--accent-ink)}
+#syncbtn[data-state="err"]{color:var(--crit)}
+
+/* ---- the day at a glance ---- */
+.band{display:flex;align-items:center;gap:20px;flex-wrap:wrap;padding:14px 0 2px}
+.pips{display:flex;gap:24px;flex-wrap:wrap;align-items:center}
+.pgroup{display:flex;align-items:center;gap:9px}
+.plabel{font-family:var(--f-mono);font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--ink-3)}
+.segs{display:flex;gap:3px}
+.segs i{display:block;width:14px;height:5px;border-radius:2px;background:var(--surface-2)}
+.segs i.on{background:var(--accent)}
+.pcount{font-family:var(--f-mono);font-size:11.5px;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.pgroup.none .pcount{color:var(--ink-3)}
+/* abstinence runs: the hardest commitments, so the most visible numbers */
+.runs{display:flex;flex-wrap:wrap;gap:6px 8px;width:100%;align-items:baseline}
+button.run{background:var(--surface-2);border:0;border-radius:100px;padding:3px 10px 3px 11px;cursor:pointer;font:inherit;color:inherit}
+button.run:hover{background:var(--now-soft)}
+button.run.slipped{box-shadow:inset 0 0 0 1.5px var(--crit)}
+li.row.slipped .sched{color:var(--crit)}
+.rlabel{font-size:13px;color:var(--ink-2)}
+.run .pcount b{font-family:var(--f-display);font-size:17px;font-weight:700;color:var(--accent-ink);margin-right:1px}
+.run.zero .pcount b{color:var(--crit)}
+.run.held .pcount b{color:var(--accent)}
+.nudge{width:100%;text-align:left;color:var(--warn)}
+
+/* ---- layout ---- */
+main{display:grid;gap:18px;grid-template-columns:1fr;padding-top:16px;align-items:start}
+.col{display:flex;flex-direction:column;gap:18px;min-width:0}
+@media (min-width:920px){
+  main{grid-template-columns:minmax(0,1.05fr) minmax(0,1fr)}
+  .bare{grid-column:1/-1}
+}
+section{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 16px 14px;display:flex;flex-direction:column;gap:12px}
+/* standing reference, not today's input: recessed instead of raised */
+section.quiet{background:transparent}
+section.bare{background:transparent;border:0;border-radius:0;padding:4px 2px;gap:10px}
+.shead{display:flex;align-items:baseline;gap:10px}
+.shead h2{font-size:13px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ink)}
+.quiet .shead h2,.bare .shead h2{color:var(--ink-3)}
+.shead .meta{margin-left:auto;font-family:var(--f-mono);font-size:12px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.link{background:none;border:0;padding:0;cursor:pointer;font-family:var(--f-mono);font-size:12px;color:var(--ink-3);text-decoration:underline;text-underline-offset:3px}
+.link:hover{color:var(--accent-ink)}
+
+/* ---- check rows ---- */
+ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+li.row{display:flex;align-items:flex-start;gap:10px;padding:7px 4px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+li.row:last-child{border-bottom:0}
+li.row label{display:flex;align-items:flex-start;gap:10px;flex:1;cursor:pointer;min-width:0}
+input[type=checkbox]{accent-color:var(--accent);width:17px;height:17px;margin:2px 0 0;flex:none;cursor:pointer}
+.txt{min-width:0;overflow-wrap:anywhere}
+.done>label .txt,.done .txt{color:var(--ink-3);text-decoration:line-through}
+.x{background:none;border:0;color:var(--ink-3);cursor:pointer;padding:0 2px;font-size:15px;line-height:1.2;flex:none}
+.x:hover{color:var(--crit)}
+.empty{color:var(--ink-3);font-size:14px;padding:6px 4px}
+
+/* habits + workout: groups and sub-items */
+.group{flex-direction:column;align-items:stretch;gap:0}
+.group>label{padding:0}
+.kids{padding:2px 0 4px 27px;border-left:1px solid var(--line);margin:4px 0 2px 8px}
+.kids li.row{padding:5px 4px;border-bottom:0}
+.kids .txt{font-size:14px}
+.count{font-family:var(--f-mono);font-size:11.5px;color:var(--ink-3);font-variant-numeric:tabular-nums;flex:none;align-self:center}
+/* a section heading inside the habit list: morning, evening */
+li.sect{display:flex;align-items:baseline;gap:10px;padding:14px 4px 5px;border-bottom:1px solid var(--line)}
+li.sect:first-child{padding-top:0}
+li.sect.folded{border-bottom:0;padding-bottom:0}
+.sname{font-family:var(--f-mono);font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3)}
+li.sect .count,li.sect .link{margin-left:auto}
+/* not wanted today: still visible, but out of the count */
+li.row.off>label{opacity:.45}
+li.row.off input[type=checkbox]{accent-color:var(--ink-3)}
+.sched,.age{font-family:var(--f-mono);font-size:11px;color:var(--ink-3);flex:none;align-self:center;white-space:nowrap}
+.age{color:var(--warn)}
+.cell .dot.skip{width:10px;height:2px;border-radius:2px;border:0;background:var(--ink-3)}
+
+/* ---- forms ---- */
+form.add{display:flex;gap:8px;flex-wrap:wrap}
+input[type=text],input[type=number],input[type=date],input[type=time],textarea,select.plain{background:var(--bg);border:1px solid var(--line);border-radius:var(--r);padding:7px 10px}
+input[type=text]{flex:1;min-width:120px}
+input[type=number]{width:88px;font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.btn{background:var(--accent);color:var(--on-accent);border:0;border-radius:var(--r);padding:7px 14px;font-weight:600;cursor:pointer}
+.btn:hover{filter:brightness(1.06)}
+.btn.quiet{background:var(--surface-2);color:var(--ink)}
+
+/* ---- projects ---- */
+select.chip,select.status{appearance:none;-webkit-appearance:none;border:1px solid var(--line);background:var(--surface-2);
+  border-radius:100px;padding:2px 10px;font-family:var(--f-mono);font-size:11px;letter-spacing:.02em;
+  color:var(--ink-2);cursor:pointer;line-height:1.6}
+select.chip{max-width:160px;text-overflow:ellipsis;flex:none;align-self:center}
+select.status{width:90px;flex:none}
+.s-active{border-color:var(--accent);color:var(--accent-ink);background:var(--accent-soft)}
+.s-hold{border-color:var(--warn);color:var(--warn);background:var(--warn-soft)}
+.s-done{color:var(--ink-3);border-color:var(--line);background:var(--surface-2)}
+.prow{display:flex;gap:10px;align-items:center;padding:7px 4px;border-bottom:1px solid var(--line)}
+.prow:last-of-type{border-bottom:0}
+.pname{flex:1;min-width:0;overflow-wrap:anywhere}
+.prow .s-done+.pname{color:var(--ink-3);text-decoration:line-through}
+.open{font-family:var(--f-mono);font-size:11.5px;color:var(--ink-3);font-variant-numeric:tabular-nums;white-space:nowrap}
+.open.stale{color:var(--warn)}
+
+/* ---- calendar ---- */
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.cal .dow{font-family:var(--f-mono);font-size:11px;color:var(--ink-3);text-align:center;letter-spacing:.06em;padding-bottom:2px}
+.cell{border:0;border-radius:5px;background:var(--surface-2);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;position:relative;padding:8px 2px 10px}
+.cell:hover{background:var(--now-soft)}
+.cell.blank{background:none;cursor:default}
+.cell .d{font-family:var(--f-mono);font-size:11.5px;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.cell .dot{width:10px;height:10px;border-radius:100px;border:1.5px solid var(--ink-3);background:transparent}
+.cell .dot.part{background:linear-gradient(var(--accent) 50%,transparent 50%);border-color:var(--accent)}
+.cell .dot.full{background:var(--accent);border-color:var(--accent)}
+.cell.today{box-shadow:inset 0 0 0 1.5px var(--now)}
+.cell.sel{background:var(--now-soft)}
+.cell.sel .d{color:var(--now)}
+.cell .w{position:absolute;bottom:3px;width:14px;height:2px;background:var(--accent-ink);border-radius:2px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-family:var(--f-mono);font-size:11px;color:var(--ink-3)}
+.legend span{display:flex;align-items:center;gap:5px}
+
+/* ---- narrow screens ---- */
+@media (max-width:560px){
+  /* brand and tools share the first line; the date gets a full line to itself,
+     so it never wraps mid-phrase */
+  .hbar{gap:6px 10px;padding:10px 16px}
+  .tools{order:2;margin-left:auto}
+  .datenav{order:3;width:100%;margin-left:0;gap:4px}
+  .datelabel{flex:1;min-width:0;font-size:17px;overflow:hidden;text-overflow:ellipsis}
+  #today{display:none}                     /* the date itself jumps to today */
+  .wrap{padding-left:max(14px,env(safe-area-inset-left));padding-right:max(14px,env(safe-area-inset-right))}
+  main{gap:14px;padding-top:12px}
+  section{padding:14px 14px 12px;gap:10px}
+  /* the first screen is for ticking: keep the affirmation and the summary tight */
+  #creed{font-size:14px;line-height:1.35;padding:9px 4px}   /* id: the base .creed rule sits later in the sheet */
+  .band{gap:6px 12px;padding:10px 0 0}
+  .run .of{display:none}                   /* "Без кальяна 5" — the "of 30" is on the row */
+  .runs{gap:4px 5px}
+  button.run{padding:2px 8px}
+  .rlabel{font-size:12px}
+  .pips{gap:4px 12px}
+  .pips .segs{display:none}               /* the count says it; the bars don't fit one row */
+  .plabel{letter-spacing:.05em}
+
+  /* a task keeps its text and delete on one line; the project tag sits under it,
+     hugging its own text rather than stretching the width of the card */
+  #tasks li.row label{min-width:calc(100% - 46px)}   /* a task's text + delete fill the line... */
+  li.row .x{order:2}
+  li.row select.chip{order:3;flex:0 0 auto;max-width:100%;margin:3px 0 1px 27px;align-self:flex-start}
+  /* only the task form needs a second row; a name-plus-Add form stays on one */
+  #taskform input[type=text]{flex:1 0 100%}
+  #taskproj{flex:1 1 auto;max-width:none;margin-left:0}
+  form.add .btn{flex:none}
+
+  /* project name first, then its status line */
+  .prow{flex-wrap:wrap;row-gap:6px}
+  .pname{flex:1 0 100%;order:-1}
+  .prow .x{margin-left:auto}
+}
+
+/* ---- dialog ---- */
+dialog{border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);
+  max-width:620px;width:calc(100% - 32px);padding:0}
+dialog::backdrop{background:#0006}
+.dwrap{padding:18px;display:flex;flex-direction:column;gap:16px;max-height:82vh;overflow:auto}
+.dwrap h3{font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2);font-weight:600}
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-family:var(--f-mono);font-size:11.5px;color:var(--ink-3);letter-spacing:.04em}
+textarea{width:100%;font-family:var(--f-mono);font-size:13px;line-height:1.6;resize:vertical}
+.wk{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media (max-width:620px){.wk{grid-template-columns:1fr}.gauges{grid-template-columns:1fr}}
+.drow{display:flex;gap:8px;justify-content:flex-end;position:sticky;bottom:0;background:var(--surface);padding-top:4px}
+.hint{font-size:13px;color:var(--ink-3);margin:2px 0 6px}
+.creed{margin:0;padding:20px 4px;border-top:0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+  font-family:var(--f-display);font-size:17px;font-weight:500;letter-spacing:-.01em;line-height:1.4;
+  text-align:center;color:var(--ink);white-space:pre-wrap;text-wrap:balance}
+.warnbar{font-family:var(--f-mono);font-size:12px;color:var(--warn);padding:8px 12px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);margin-top:18px}
+
+/* ---- standalone app shell ---- */
+html{background:var(--bg)}
+body{margin:0}
+[hidden]{display:none!important}
+header{padding-top:env(safe-area-inset-top)}
+.wrap{padding-left:max(18px,env(safe-area-inset-left));padding-right:max(18px,env(safe-area-inset-right));
+  padding-bottom:calc(56px + env(safe-area-inset-bottom))}
+@media (max-width:560px){
+  .wrap{padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}
+}
+.dataio{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+/* ---- inside Гиря ----
+   One column at Гиря's width, its corners, and a single header row: the brand
+   and "Today" are gone (the date itself jumps to today), so date and Настройка
+   share one line on every screen size. Last in the sheet on purpose. */
+.hbar,.wrap{max-width:720px}
+main{grid-template-columns:1fr}
+.bare{grid-column:auto}
+section{border-radius:16px}
+.hbar{flex-wrap:nowrap;gap:6px;padding:8px 12px}
+.datenav{order:0;width:auto;flex:1;margin:0;gap:2px}
+.datelabel{flex:1;min-width:0;font-size:17px;overflow:hidden;text-overflow:ellipsis}
+.tools{order:0;margin-left:0}
+header{padding-top:0}
+.wrap{padding-bottom:24px}
+.kbstatus{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:none;border:0;
+  padding:4px 2px;cursor:pointer;font:inherit;color:inherit}
+.kbstatus .mark{flex:none;width:26px;height:26px;border-radius:100px;display:grid;place-items:center;
+  font-size:14px;font-weight:700;border:2px solid var(--line);color:var(--ink-3)}
+.kbstatus.done .mark{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.kbstatus.active .mark{border-color:var(--accent);color:var(--accent)}
+.kbstatus .t{font-weight:600}
+.kbstatus .d{font-size:13px;color:var(--ink-3)}
+.kbstatus .go{margin-left:auto;color:var(--ink-3);font-size:18px}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hbar">
+    <nav class="datenav">
+      <button class="ghost" id="prev" aria-label="Предыдущий день">&larr;</button>
+      <button class="ghost datelabel" id="dlabel" title="К сегодняшнему дню">&mdash;</button>
+      <button class="ghost" id="next" aria-label="Следующий день">&rarr;</button>
+    </nav>
+    <span class="tools">
+      <button class="ghost" id="today" hidden>Сегодня</button>
+      <button class="ghost" id="syncbtn" data-state="off" title="Синхронизация через GitHub" hidden>Синхр.</button>
+      <button class="ghost" id="settings" title="Привычки, аффирмация, напоминание, копия">Настройка</button>
+    </span>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="creed" id="creed" hidden></div>
+  <div class="band">
+    <div class="pips" id="pips"></div>
+    <div class="runs" id="runs" hidden></div>
+    <button class="link nudge" id="nudge" hidden></button>
+  </div>
+  <div id="offline"></div>
+  <main>
+    <section>
+      <div class="shead"><h2>Привычки</h2><div class="meta" id="hmeta"></div></div>
+      <ul id="habits"></ul>
+      <button class="link" id="skip" hidden></button>
+    </section>
+
+    <section id="trainsec">
+      <div class="shead"><h2>Тренировка</h2><div class="meta" id="wmeta"></div></div>
+      <button type="button" class="kbstatus" id="kbstatus"></button>
+    </section>
+
+    <section>
+      <div class="shead"><h2>Задачи</h2><div class="meta" id="tmeta"></div></div>
+      <ul id="tasks"></ul>
+      <form class="add" id="taskform">
+        <input type="text" id="tasktext" placeholder="Новая задача" autocomplete="off">
+        <select id="taskproj" class="chip" aria-label="Проект"></select>
+        <button class="btn" type="submit" id="addtask">Добавить</button>
+      </form>
+    </section>
+
+    <section class="quiet">
+      <div class="shead"><h2>Проекты</h2><div class="meta" id="pmeta"></div></div>
+      <div id="projects"></div>
+      <form class="add" id="projform">
+        <input type="text" id="projname" placeholder="Новый проект" autocomplete="off">
+        <button class="btn" type="submit">Добавить</button>
+      </form>
+    </section>
+
+    <section class="bare">
+      <div class="shead"><h2 id="calhead">Месяц</h2>
+        <button class="link" id="calprev" aria-label="Предыдущий месяц">&larr;</button>
+        <button class="link" id="calnext" aria-label="Следующий месяц">&rarr;</button>
+        <div class="meta" id="cmeta"></div></div>
+      <div class="cal" id="cal"></div>
+      <div class="legend">
+        <span><i style="display:inline-block;width:9px;height:9px;border-radius:100px;border:1.5px solid var(--ink-3)"></i> ничего</span>
+        <span><i style="display:inline-block;width:9px;height:9px;border-radius:100px;background:linear-gradient(var(--accent) 50%,transparent 50%);border:1.5px solid var(--accent)"></i> частично</span>
+        <span><i style="display:inline-block;width:9px;height:9px;border-radius:100px;background:var(--accent)"></i> все привычки</span>
+        <span><i style="display:inline-block;width:9px;height:2px;background:var(--ink-3)"></i> пропуск</span>
+        <span><i style="display:inline-block;width:14px;height:2px;background:var(--accent-ink)"></i> тренировка</span>
+      </div>
+    </section>
+  </main>
+</div>
+
+<dialog id="dlg">
+  <form method="dialog" class="dwrap" id="setupform">
+    <div>
+      <h3>Привычки</h3>
+      <p class="hint">По одной на строку. Два пробела в начале — подпункт; родитель отмечается сам, когда отмечены все подпункты.
+        Строка с <code>#</code> — заголовок: <code># Вечер @18</code> держит всё под ним свёрнутым до 18:00, чтобы вечернее
+        не отмечалось наугад с утра.
+        В конце строки: <code>@пн,ср,пт</code> или <code>@mon,wed,fri</code> — по этим дням, <code>@3x</code> — три раза в неделю,
+        <code>@30/30</code> — курс: 30 дней приём, 30 перерыв, от первого дня, когда отметил, <code>@30d</code> — 30 дней подряд
+        без срыва, при срыве счёт начинается заново. Без хвоста привычка — каждый день.
+        Если меняешь только формулировку и не добавляешь и не удаляешь строки в той же правке, история сохраняется.</p>
+      <textarea id="fhabits" rows="12"></textarea>
+    </div>
+    <div>
+      <h3>Аффирмация</h3>
+      <p class="hint">Строка вверху каждого дня. Её и читает привычка про аффирмации.</p>
+      <textarea id="fcreed" rows="3"></textarea>
+    </div>
+    <div>
+      <h3>Напоминание</h3>
+      <p class="hint">Ежедневное событие в календаре телефона — напоминает сам календарь: у приложения нет сервера,
+        чтобы присылать уведомления. Можно добавить утреннее и вечернее; то же время ещё раз заменит старое, а не добавит второе.</p>
+      <div class="dataio">
+        <input type="time" id="ftime" value="21:00" aria-label="Время напоминания">
+        <button type="button" class="btn quiet" id="fics">В календарь</button>
+        <span class="hint" id="fics-note" style="margin:0"></span>
+      </div>
+    </div>
+    <div>
+      <h3>Резервная копия</h3>
+      <p class="hint" id="fbackup"></p>
+      <p class="hint">Всё, что отмечено, хранится в этом браузере. Выгрузи файл, чтобы перенести на другой телефон или браузер, и загрузи его там.</p>
+      <div class="dataio">
+        <button type="button" class="btn quiet" id="fexport">Выгрузить</button>
+        <button type="button" class="btn quiet" id="fimport">Загрузить&hellip;</button>
+        <input type="file" id="ffile" accept="application/json,.json" hidden>
+        <span class="hint" id="fio" style="margin:0"></span>
+      </div>
+    </div>
+    <div>
+      <h3>Синхронизация через GitHub</h3>
+      <p class="hint"><b>Необязательно.</b> Оставь пустым — и данные никуда не уходят с этого устройства.</p>
+      <p class="hint">Если заполнить, все устройства с этим репозиторием и токеном делят один файл <code>data/daydesk.json</code>.
+        Репозиторий <b>обязательно закрытый</b> — не тот открытый, откуда открывается приложение; в открытый приложение писать
+        откажется. Токен — fine-grained, только на этот репозиторий, право <b>Contents: Read and write</b> и ничего больше;
+        хранится в этом браузере и больше никуда не отправляется.</p>
+      <div class="field"><label for="srepo">Репозиторий (владелец/имя)</label><input type="text" id="srepo" placeholder="yourname/daydesk" autocomplete="off"></div>
+      <div class="field"><label for="sbranch">Ветка</label><input type="text" id="sbranch" placeholder="main" autocomplete="off"></div>
+      <div class="field"><label for="stoken">Токен</label><input type="password" id="stoken" placeholder="github_pat_…" autocomplete="off"></div>
+    </div>
+    <div class="drow">
+      <button class="btn quiet" value="cancel" formnovalidate>Отмена</button>
+      <button class="btn" value="save">Сохранить</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+const DOW=["Вс","Пн","Вт","Ср","Чт","Пт","Сб"];
+const iso=d=>d.toLocaleDateString("en-CA");
+const parseDate=s=>{const[y,m,d]=s.split("-").map(Number);return new Date(y,m-1,d)};
+const shift=(s,n)=>{const d=parseDate(s);d.setDate(d.getDate()+n);return iso(d)};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const $=id=>document.getElementById(id);
+
+const state={
+  date:iso(new Date()),
+  calMonth:new Date(),
+  days:{},
+  habits:{text:""},
+  workout:{days:{}},
+  creed:{text:""},
+  projects:{items:[]},
+  openSects:{}
+};
+
+/* ---------- store: db when the viewer can run it, otherwise this device ---------- */
+let db=null;
+const LS="daydesk:";
+const lsGet=p=>{try{return JSON.parse(localStorage.getItem(LS+p)||"null")}catch(e){return null}};
+const lsSet=(p,v)=>{try{localStorage.setItem(LS+p,JSON.stringify(v))}catch(e){}};
+
+function put(path,body){
+  if(db) return db.doc(path).set(body).catch(e=>note("Не сохранилось: "+e.message));
+  lsSet(path,body);
+  const st=lsGet("u")||{}; st[path]=Date.now(); lsSet("u",st);   // per-document clock, for merging
+  clearTimeout(syncTimer); syncTimer=setTimeout(sync,3000);
+}
+/* every stored document, keyed by its path — the unit both sides merge on */
+function allLocal(){
+  const out={};
+  Object.keys(localStorage).forEach(k=>{
+    if(!k.startsWith(LS)) return;
+    const path=k.slice(LS.length);
+    if(path==="sync"||path==="u"||path==="backup") return;
+    const v=lsGet(path); if(v) out[path]=v;
+  });
+  return out;
+}
+function loadLocal(){
+  state.days={};
+  Object.keys(localStorage).forEach(k=>{
+    if(k.startsWith(LS+"days/")) state.days[k.slice((LS+"days/").length)]=lsGet(k.slice(LS.length));
+  });
+  state.habits=lsGet("config/habits")||state.habits;
+  state.workout=lsGet("config/workout")||state.workout;
+  state.creed=lsGet("config/creed")||state.creed;
+  state.projects=lsGet("config/projects")||state.projects;
+}
+function note(msg){ $("offline").innerHTML='<div class="warnbar">'+esc(msg)+"</div>"; }
+
+/* Habits the owner asked for, added to their own list once. Their list lives on
+   their device, so shipping a new schedule type changes nothing they can see
+   until the lines exist — this writes them. Idempotent: a line already present
+   in any wording is left alone, and a flag stops it ever running twice, so a
+   habit they later delete stays deleted. */
+function addRequestedHabits(text){
+  const lines=(text||"").replace(/\s+$/,"").split("\n");
+  const has=re=>re.test(text||"");
+  const vi=lines.findIndex(l=>/^\S/.test(l)&&/vitamin|витамин/i.test(l)&&!/\s@\S+\s*$/.test(l));
+  if(vi>=0) lines[vi]=lines[vi].replace(/\s+$/,"")+" @30/30";
+  if(!has(/achievement|достижени/i)) lines.push("Пополнить список достижений");
+  if(!has(/аскез|abstinence|кальян|hookah/i)) lines.push("Аскеза @30d","  Без кальяна","  Без порно","  Без лишних трат");
+  return lines.filter((l,i)=>i>0||l.trim()).join("\n");
+}
+/* Split the list into a morning section and an evening one. What belongs in the
+   evening is what can only be known at the end of the day: whether an
+   abstinence run held, and what got achieved. Everything else keeps its order
+   under Morning. Leaves a list that already has sections alone. */
+function addSections(text){
+  if(/^#/m.test(text||"")) return text;
+  const blocks=[];
+  (text||"").replace(/\s+$/,"").split("\n").forEach(l=>{
+    if(/^\S/.test(l)||!blocks.length) blocks.push([l]); else blocks[blocks.length-1].push(l);
+  });
+  const evening=b=>/достижени|achievement/i.test(b[0])||/\s@\d+d\s*$/.test(b[0]);
+  const eve=blocks.filter(evening), day=blocks.filter(b=>!evening(b));
+  if(!eve.length||!day.length) return text;
+  return ["# Morning",...day.flat(),"# Evening @18",...eve.flat()].join("\n");
+}
+/* Each runs once, in order; the ids of the ones applied travel with the list. */
+/* The app went Russian when it moved into Гиря. Headings are never part of a
+   habit's key, so renaming them touches no history. Only the exact lines the
+   previous migration wrote are changed. */
+const ruHeadings=text=>(text||"").split("\n")
+  .map(l=>l==="# Morning"?"# Утро":l==="# Evening @18"?"# Вечер @18":l).join("\n");
+const MIGRATIONS=[
+  ["2026-09-23-courses-and-runs",addRequestedHabits],
+  ["2026-09-24-morning-evening",addSections],
+  ["2026-09-26-ru-headings",ruHeadings],
+];
+function applyMigrations(){
+  const h=state.habits||{}, text=h.text!==undefined?h.text:(h.items||[]).join("\n");
+  const applied=h.migrated||[], todo=MIGRATIONS.filter(m=>!applied.includes(m[0]));
+  if(!text.trim()||!todo.length) return false;
+  const next=Object.assign({},h,{
+    text:todo.reduce((t,m)=>m[1](t),text),
+    migrated:applied.concat(todo.map(m=>m[0])),
+  });
+  delete next.items;
+  state.habits=next;
+  put("config/habits",next);
+  return true;
+}
+
+async function connect(){
+  try{ db=window.claude ? await claude.use("db") : null; }catch(e){ db=null; }
+  if(!db){
+    loadLocal();
+    protectStorage();
+    applyMigrations();
+    render();
+    return sync();
+  }
+  $("syncbtn").hidden=true;
+  const err=e=>note("Связь прервалась ("+e.code+"). Обнови страницу.");
+  db.doc("config/habits").onSnapshot(s=>{if(s.exists){state.habits=s.data();applyMigrations()}render()},err);
+  db.doc("config/workout").onSnapshot(s=>{if(s.exists)state.workout=s.data();render()},err);
+  db.doc("config/creed").onSnapshot(s=>{if(s.exists)state.creed=s.data();render()},err);
+  db.doc("config/projects").onSnapshot(s=>{if(s.exists)state.projects=s.data();render()},err);
+  db.collection("days").orderBy("date","desc").limit(400).onSnapshot(q=>{
+    state.days={};
+    q.docs.forEach(d=>state.days[d.id]=d.data());
+    render();
+  },err);
+}
+
+/* ---------- model ---------- */
+const day=s=>state.days[s]||{};
+function saveDay(s,patch){
+  const next=Object.assign({date:s,habits:{},tasks:[],workout:{}},day(s),patch);
+  state.days[s]=next;
+  put("days/"+s,next);
+  render();
+}
+/* A checklist is one block of text; an indented line is a sub-item of the line
+   above. A habit line may end with a schedule: "@mon,wed,fri" for fixed days,
+   "@3x" for three times a week on any days, "@30/30" for a course — thirty days
+   on, thirty days off, repeating — or "@30d" for a run of thirty days held
+   without a break. The schedule is stripped out of the name, so changing it
+   never disturbs that habit's history. */
+const DOWKEY={sun:0,mon:1,tue:2,wed:3,thu:4,fri:5,sat:6,вс:0,пн:1,вт:2,ср:3,чт:4,пт:5,сб:6};
+function parseSched(name){
+  const m=name.match(/\s+@([a-zа-яё0-9,/]+)\s*$/i);
+  if(!m) return {name,sched:null};
+  const raw=m[1].toLowerCase(), clean=name.slice(0,m.index).trim();
+  const times=raw.match(/^(\d+)[xх]$/);          // Latin x or Cyrillic х — they look the same
+  if(times && +times[1]>0) return {name:clean,sched:{type:"week",n:+times[1]}};
+  const cycle=raw.match(/^(\d+)\/(\d+)$/);
+  if(cycle && +cycle[1]>0 && +cycle[2]>0) return {name:clean,sched:{type:"cycle",on:+cycle[1],off:+cycle[2]}};
+  const run=raw.match(/^(\d+)[dд]$/);
+  if(run && +run[1]>0) return {name:clean,sched:{type:"run",n:+run[1]}};
+  const days=raw.split(",").map(d=>DOWKEY[d.slice(0,3)]).filter(d=>d!==undefined);
+  return days.length?{name:clean,sched:{type:"days",days}}:{name,sched:null};
+}
+/* "# Evening @18" starts a section: a heading, and — for today, before that
+   hour — the habits under it stay folded, so an end-of-day check can't be
+   ticked as a guess at breakfast. Sections never touch a habit's key. */
+function parseHeader(text){
+  const m=text.match(/^#\s*(.*?)(?:\s+@(\d{1,2})(?::(\d{2}))?)?\s*$/);
+  if(!m||!m[1]) return null;
+  const opens=m[2]!==undefined&&+m[2]<24?(+m[2])*60+(+(m[3]||0)):null;
+  return {header:true,name:m[1],opens,key:"#"+m[1],kids:[]};
+}
+function parseTree(raw,scheduled){
+  const out=[];
+  (raw||"").split("\n").forEach(line=>{
+    if(!line.trim()) return;
+    const child=/^[\s\-•]/.test(line), text=line.replace(/^[\s\-•]+/,"").trim();
+    const hdr=scheduled&&!child?parseHeader(text):null;
+    if(hdr) return void out.push(hdr);
+    const {name,sched}=scheduled?parseSched(text):{name:text,sched:null};
+    const parent=out[out.length-1];
+    if(child && parent && !parent.header) parent.kids.push({name,sched,key:parent.name+"/"+name});
+    else out.push({name,sched,key:name,kids:[]});
+  });
+  return out;
+}
+/* A sub-item with no schedule of its own follows its parent's, and remembers
+   whose it is: a course belongs to the group, so three vitamins first ticked on
+   three different days still run as one course. */
+const leavesOf=tree=>tree.flatMap(h=>h.header?[]:h.kids.length
+  ? h.kids.map(k=>k.sched?k:Object.assign({},k,{sched:h.sched,owner:h.sched?h.key:undefined}))
+  : [h]);
+
+/* the Monday-start week containing a date */
+function weekDays(s){
+  const start=shift(s,-((parseDate(s).getDay()+6)%7));
+  return Array.from({length:7},(_,i)=>shift(start,i));
+}
+/* How far into a course a day falls, counting from the first day it was ever
+   ticked. Null until the course has been started at all. */
+function cyclePhase(sc,s,anchor){
+  if(!anchor) return null;
+  const n=Math.round((parseDate(s)-parseDate(anchor))/864e5);
+  return n<0?null:n%(sc.on+sc.off);
+}
+/* Days held in an unbroken run ending at `s`. A deliberately skipped day bridges
+   the run without adding to it; today still open does not end it. A slip — the
+   owner saying "I broke it" — ends it on that day, and a slip today puts the
+   count back to zero right away rather than waiting for tomorrow to notice. */
+function runLength(key,s,ticked,isSkipped,slipped){
+  const slip=slipped||(()=>false);
+  if(slip(s)) return 0;
+  let n=0,k=s;
+  if(!ticked(k)) k=shift(k,-1);
+  while(!slip(k)&&(ticked(k)||isSkipped(k))){ if(ticked(k)) n++; k=shift(k,-1) }
+  return n;
+}
+/* Is this habit wanted on this day? habitsFor(dateStr) returns that day's ticks;
+   firstTick(key) the first day it was ever ticked, which anchors a course. */
+function dueOn(it,s,habitsFor,firstTick){
+  const sc=it.sched;
+  if(!sc) return true;
+  if((habitsFor(s)||{})[it.key]) return true;          // already done: always show it
+  if(sc.type==="days") return sc.days.includes(parseDate(s).getDay());
+  if(sc.type==="run") return true;                      // a run is asked for daily
+  if(sc.type==="cycle"){
+    const p=cyclePhase(sc,s,firstTick&&firstTick(it.owner||it.key));
+    return p===null||p<sc.on;                           // not started yet, or on
+  }
+  const done=weekDays(s).filter(k=>k!==s&&(habitsFor(k)||{})[it.key]).length;
+  return done<sc.n;                                     // weekly quota not met yet
+}
+const habitTree=()=>parseTree(state.habits.text!==undefined?state.habits.text:(state.habits.items||[]).join("\n"),true);
+const leaves=()=>leavesOf(habitTree());
+const planTree=s=>parseTree(state.workout.days?.[parseDate(s).getDay()]||"",false);
+const habitsFor=k=>day(k).habits||{};
+const slipOf=(key,k)=>{ const v=(day(k).slips||{})[key]; return v===undefined?null:v };
+const heldFor=key=>[k=>!!habitsFor(k)[key],skipped,k=>slipOf(key,k)!==null];
+/* first day each habit was ever ticked; rebuilt once per render */
+let firstTicks=null;
+function firstTickOf(key){
+  if(!firstTicks){
+    firstTicks={};
+    Object.keys(state.days).sort().forEach(k=>{
+      const h=state.days[k].habits||{};
+      Object.keys(h).forEach(x=>{ if(h[x]&&!(x in firstTicks)) firstTicks[x]=k });
+    });
+    /* a group's course starts the day any of its members first did */
+    leaves().forEach(l=>{
+      const f=firstTicks[l.key];
+      if(l.owner&&f&&(!(l.owner in firstTicks)||f<firstTicks[l.owner])) firstTicks[l.owner]=f;
+    });
+  }
+  return firstTicks[key]||null;
+}
+const isDueOn=(it,s)=>dueOn(it,s,habitsFor,firstTickOf);
+const dueLeaves=s=>leaves().filter(l=>isDueOn(l,s));
+const skipped=s=>!!day(s).skip;
+const nsplit=v=>[v.slice(0,v.indexOf(":")),v.slice(v.indexOf(":")+1)];
+const STATUS=[["active","В работе"],["hold","На паузе"],["done","Готов"]];
+const RANK={active:0,hold:1,done:2};
+const projects=()=>(state.projects.items||[]).slice().sort((a,b)=>(RANK[a.status]??0)-(RANK[b.status]??0));
+const proj=id=>(state.projects.items||[]).find(p=>p.id===id);
+
+function ratio(s){
+  const L=dueLeaves(s); if(!L.length) return 0;
+  const done=day(s).habits||{};
+  return L.filter(l=>done[l.key]).length/L.length;
+}
+
+/* A task belongs to the day it was written on, and stays on the list every day
+   after that until it is ticked — so nothing is stranded on a day you skipped
+   past. Ticking one records the day it was finished, which is the day it stops
+   carrying forward (and the day it still shows on, so it doesn't vanish under
+   your finger). */
+function tasksFor(s){
+  const out=[];
+  Object.keys(state.days).filter(k=>k<s).sort().forEach(k=>
+    (state.days[k].tasks||[]).forEach((t,i)=>{ if(!t.done||t.doneOn===s) out.push({src:k,i,t}) }));
+  (day(s).tasks||[]).forEach((t,i)=>out.push({src:s,i,t}));
+  return out;
+}
+const taskRef=v=>{const j=v.lastIndexOf(":");return [v.slice(0,j),+v.slice(j+1)]};
+function patchTask(ref,fields){
+  const [src,i]=taskRef(ref);
+  saveDay(src,{tasks:(day(src).tasks||[]).map((x,j)=>j===i?Object.assign({},x,fields):x)});
+}
+
+/* ---------- render ---------- */
+function render(){
+  firstTicks=null;
+  const s=state.date, d=day(s), today=iso(new Date());
+
+  $("dlabel").textContent = s===today ? "Сегодня · "+parseDate(s).toLocaleDateString("ru-RU",{month:"short",day:"numeric"})
+    : parseDate(s).toLocaleDateString("ru-RU",{weekday:"short",month:"short",day:"numeric",year:s.slice(0,4)!==today.slice(0,4)?"numeric":undefined});
+
+  const creed=(state.creed.text||"").trim();
+  $("creed").hidden=!creed; $("creed").textContent=creed;
+
+  renderPips();
+  renderRuns(s);
+  renderBackup();
+  renderHabits();
+
+  // tasks
+  const tasks=tasksFor(s);
+  $("tmeta").textContent=tasks.length?tasks.filter(x=>x.t.done).length+" / "+tasks.length:"";
+  $("tasks").innerHTML = tasks.length
+    ? tasks.map(({src,i,t})=>{
+        const pr=proj(t.p), ref=src+":"+i;
+        return '<li class="row'+(t.done?" done":"")+'"><label><input type="checkbox" data-task="'+ref+'"'+(t.done?" checked":"")+'><span class="txt">'+esc(t.text)+"</span></label>"
+        +(src!==s?'<span class="age" title="Добавлена '+esc(src)+'">'+ago(src)+"</span>":"")
+        +'<select class="chip'+(pr?" s-"+pr.status:"")+'" data-taskproj="'+ref+'" aria-label="Проект">'
+        +'<option value=""'+(pr?"":" selected")+">Без проекта</option>"
+        +projects().map(p=>'<option value="'+esc(p.id)+'"'+(p.id===t.p?" selected":"")+">"+esc(p.name)+"</option>").join("")
+        +'</select><button class="x" data-deltask="'+ref+'" aria-label="Удалить задачу">&times;</button></li>';
+      }).join("")
+    : '<li class="empty">Открытых задач нет.</li>';
+
+  renderProjects();
+
+  renderWorkout();
+
+  renderCal();
+}
+
+const hhmm=m=>String(Math.floor(m/60)).padStart(2,"0")+":"+String(m%60).padStart(2,"0");
+function renderList(elId,tree,done,ns,emptyHtml,isDue,noteFor,isFolded,isLocked){
+  const due=isDue||(()=>true), note=noteFor||(()=>""), folded=isFolded||(()=>false), locked=isLocked||(()=>false);
+  const leaf=it=>{
+    const off=!due(it), n=note(it), lock=locked(it);
+    return '<li class="row'+(done[it.key]?" done":"")+(off?" off":"")+(lock?" slipped":"")+'">'
+      +'<label><input type="checkbox" data-leaf="'+esc(ns+":"+it.key)+'"'+(done[it.key]?" checked":"")+(lock?" disabled":"")+'><span class="txt">'+esc(it.name)+"</span></label>"
+      +(n?'<span class="sched">'+esc(n)+"</span>":"")+"</li>";
+  };
+  const group=h=>{
+    const kids=leavesOf([h]), open=kids.filter(due);
+    const n=open.filter(k=>done[k.key]).length, all=open.length>0&&n===open.length;
+    return '<li class="row group'+(all?" done":"")+(open.length?"":" off")+'">'
+      +'<div style="display:flex;gap:10px;align-items:flex-start">'
+      +'<label><input type="checkbox" data-parent="'+esc(ns+":"+h.name)+'"'+(all?" checked":"")+'><span class="txt">'+esc(h.name)+"</span></label>"
+      +'<span class="count">'+(open.length?n+" / "+open.length:"—")+"</span></div>"
+      +'<ul class="kids">'+kids.map(leaf).join("")+"</ul></li>";
+  };
+  let fold=false;
+  const out=[];
+  tree.forEach((h,i)=>{
+    if(h.header){
+      // what sits under this heading, so a folded section still says what it holds
+      const under=[];
+      for(let j=i+1;j<tree.length&&!tree[j].header;j++) under.push(...leavesOf([tree[j]]));
+      const live=under.filter(due), n=live.filter(k=>done[k.key]).length;
+      fold=folded(h);
+      out.push('<li class="sect'+(fold?" folded":"")+'"><span class="sname">'+esc(h.name)+'</span>'
+        +(fold?'<button class="link" data-sect="'+esc(h.name)+'">с '+hhmm(h.opens)+' · показать '+live.length+'</button>'
+              :'<span class="count">'+(live.length?n+" / "+live.length:"")+"</span>")+"</li>");
+      return;
+    }
+    if(!fold) out.push(h.kids.length?group(h):leaf(h));
+  });
+  $(elId).innerHTML=out.length?out.join(""):emptyHtml;
+}
+/* why a habit is sitting out today */
+function schedNote(it,s){
+  const sc=it.sched; if(!sc) return "";
+  if(sc.type==="run"){
+    const at=slipOf(it.key,s);
+    if(at!==null) return "срыв"+(at?" "+at:"");
+    const n=runLength(it.key,s,...heldFor(it.key));
+    return n>=sc.n?"держусь "+n+" дн.":"день "+n+" из "+sc.n;
+  }
+  if(sc.type==="cycle"){
+    const p=cyclePhase(sc,s,firstTickOf(it.owner||it.key));
+    if(p===null) return "день 1 из "+sc.on;
+    return p<sc.on ? "день "+(p+1)+" из "+sc.on : "перерыв · ещё "+(sc.on+sc.off-p)+" дн.";
+  }
+  if(sc.type==="days"){
+    if(sc.days.includes(parseDate(s).getDay())) return "";
+    return sc.days.map(d=>DOW[d].toLowerCase()).join(" ");
+  }
+  const done=weekDays(s).filter(k=>habitsFor(k)[it.key]).length;
+  return done>=sc.n?"на неделе сделано":"на неделе ещё "+(sc.n-done);
+}
+
+/* every run on the list, with how many days it has been held as of the day shown */
+function renderRuns(s){
+  const runs=leaves().filter(l=>l.sched&&l.sched.type==="run");
+  $("runs").hidden=!runs.length;
+  $("runs").innerHTML=runs.map(l=>{
+    const n=runLength(l.key,s,...heldFor(l.key)), t=l.sched.n, at=slipOf(l.key,s);
+    return '<button class="pgroup run'+(n>=t?" held":n?"":" zero")+(at!==null?" slipped":"")+'" data-run="'+esc(l.key)+'"'
+      +' title="'+(at!==null?"Срыв"+(at?" в "+at:"")+" — нажми, чтобы отменить":"Нажми, если сорвался")+'">'
+      +'<span class="rlabel">'+esc(l.name)+'</span>'
+      +'<span class="pcount"><b>'+n+'</b><span class="of"> / '+t+'</span></span></button>';
+  }).join("");
+}
+
+function renderPips(){
+  const s=state.date, d=day(s), tasks=tasksFor(s).map(x=>x.t);
+  const hL=dueLeaves(s), hd=d.habits||{}, st=trainingOn(s);
+  const groups=[
+    ["Привычки",hL.filter(l=>hd[l.key]).length,hL.length],
+    ["Задачи",tasks.filter(t=>t.done).length,tasks.length]
+  ];
+  const train=st&&TRAIN_WORD[st.state]
+    ?'<div class="pgroup'+(st.state==="done"?"":" none")+'"><span class="plabel">Тренировка</span><span class="pcount">'+TRAIN_WORD[st.state]+"</span></div>":"";
+  $("pips").innerHTML=groups.map((g,i)=>(i===1?train:"")+(()=>{
+    if(!g[2]) return '<div class="pgroup none"><span class="plabel">'+g[0]+'</span><span class="pcount">нет</span></div>';
+    let seg="";
+    for(let i=0;i<Math.min(g[2],12);i++) seg+="<i"+(i<g[1]?' class="on"':"")+"></i>";
+    return '<div class="pgroup"><span class="plabel">'+g[0]+'</span><span class="segs">'+seg+'</span><span class="pcount">'+g[1]+"/"+g[2]+"</span></div>";
+  })()).join("");
+}
+
+function renderHabits(){
+  const s=state.date, d=day(s), done=d.habits||{}, L=dueLeaves(s);
+  $("hmeta").textContent = skipped(s) ? "пропущен"
+    : L.length ? L.filter(l=>done[l.key]).length+" / "+L.length : "";
+  $("skip").textContent = skipped(s) ? "Пропущен — вернуть день" : "Пропустить день";
+  $("skip").hidden = !leaves().length;
+  // a section with an hour stays folded until then — today only; a past day is over
+  const now=new Date(), mins=now.getHours()*60+now.getMinutes(), isToday=s===iso(now);
+  renderList("habits",habitTree(),done,"h",'<li class="empty">Привычек пока нет — добавь в <b>Настройке</b>.</li>',
+    it=>isDueOn(it,s), it=>schedNote(it,s),
+    h=>isToday&&h.opens!==null&&mins<h.opens&&!state.openSects[h.name],
+    it=>slipOf(it.key,s)!==null);
+}
+
+/* Training lives in Гиря's own tabs; this page only asks the host what a day
+   looks like. Opened on its own, without Гиря around it, the block is hidden.
+   Days before this page moved in were ticked by hand — those still count. */
+const host=()=>{ try{ return window.parent!==window&&window.parent.kbTodayStatus?window.parent:null }catch(e){ return null } };
+function trainingOn(s){
+  const h=host(); if(!h) return null;
+  const today=iso(new Date());
+  if(s===today) return h.kbTodayStatus();
+  if(s>today) return {state:"future",title:"Впереди",detail:""};
+  const was=h.kbTrainedOn(s)||Object.values(day(s).workout||{}).some(Boolean);
+  return {state:was?"done":"none",title:was?"Тренировка была":"Тренировки не было",detail:""};
+}
+const TRAIN_WORD={done:"сделана",active:"идёт",todo:"в плане",rest:"отдых",none:"не было"};
+function renderWorkout(){
+  const st=trainingOn(state.date);
+  $("trainsec").hidden=!st; if(!st) return;
+  const b=$("kbstatus");
+  b.className="kbstatus "+st.state;
+  b.innerHTML='<span class="mark">'+({done:"✓",active:"•",rest:"–",none:"–",setup:"!"}[st.state]||"")+'</span>'
+    +'<span><span class="t">'+esc(st.title)+'</span>'+(st.detail?'<br><span class="d">'+esc(st.detail)+'</span>':"")+'</span>'
+    +'<span class="go">›</span>';
+  $("wmeta").textContent=TRAIN_WORD[st.state]||"";
+}
+$("kbstatus").onclick=()=>{ const h=host(); if(h&&h.kbOpenTraining) h.kbOpenTraining() };
+
+const daysAgo=k=>Math.round((parseDate(iso(new Date()))-parseDate(k))/864e5);
+const ago=k=>{const n=daysAgo(k);return n<=0?"сегодня":n<7?n+"д":n<30?Math.floor(n/7)+"нед":Math.floor(n/30)+"мес"};
+
+function renderProjects(){
+  const list=projects(), open={}, last={};
+  Object.keys(state.days).forEach(k=>(state.days[k].tasks||[]).forEach(t=>{
+    if(!t.p) return;
+    if(!t.done) open[t.p]=(open[t.p]||0)+1;
+    if(!last[t.p]||k>last[t.p]) last[t.p]=k;
+  }));
+  $("pmeta").textContent=list.length?"в работе: "+list.filter(p=>p.status==="active").length:"";
+  $("projects").innerHTML = list.length
+    ? list.map(p=>'<div class="prow"><select class="status s-'+p.status+'" data-status="'+esc(p.id)+'" aria-label="Статус: '+esc(p.name)+'">'
+        +STATUS.map(v=>'<option value="'+v[0]+'"'+(p.status===v[0]?" selected":"")+">"+v[1]+"</option>").join("")
+        +'</select><span class="pname">'+esc(p.name)+'</span>'
+        +'<span class="open'+(p.status==="active"&&last[p.id]&&daysAgo(last[p.id])>=14?" stale":"")+'">'
+        +'открыто '+(open[p.id]||0)+(last[p.id]?' · '+ago(last[p.id]):'')+'</span>'
+        +'<button class="x" data-delproj="'+esc(p.id)+'" aria-label="Удалить проект">&times;</button></div>').join("")
+    : '<div class="empty">Добавь проект — каждая задача к нему привязана.</div>';
+
+  const sel=$("taskproj"), cur=sel.value;
+  sel.innerHTML=list.length
+    ? list.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.name)+"</option>").join("")
+    : '<option value="">Проектов пока нет</option>';
+  if(list.some(p=>p.id===cur)) sel.value=cur;
+  sel.disabled=$("addtask").disabled=!list.length;
+}
+
+function renderCal(){
+  const m=state.calMonth, y=m.getFullYear(), mo=m.getMonth(), today=iso(new Date());
+  $("calhead").textContent=m.toLocaleDateString("ru-RU",{month:"long",year:"numeric"});
+  const first=(new Date(y,mo,1).getDay()+6)%7, len=new Date(y,mo+1,0).getDate();   // weeks start on Monday
+  let html=[1,2,3,4,5,6,0].map(d=>'<div class="dow">'+DOW[d]+"</div>").join("");
+  const h=host();
+  for(let i=0;i<first;i++) html+='<div class="cell blank"></div>';
+  let logged=0;
+  for(let n=1;n<=len;n++){
+    const s=iso(new Date(y,mo,n)), r=ratio(s), d=day(s), skip=skipped(s);
+    const trained=Object.values(d.workout||{}).some(Boolean)||!!(h&&h.kbTrainedOn(s));
+    if(r>0||trained||skip||(d.tasks||[]).length) logged++;
+    html+='<button class="cell'+(s===today?" today":"")+(s===state.date?" sel":"")+'" data-day="'+s+'">'
+      +'<span class="d">'+n+'</span>'
+      +(skip?'<span class="dot skip"></span>':'<span class="dot'+(r>=1?" full":r>0?" part":"")+'"></span>')
+      +(trained?'<span class="w"></span>':"")+"</button>";
+  }
+  $("cal").innerHTML=html;
+  $("cmeta").textContent=logged?"отмечено дней: "+logged:"";
+}
+
+/* ---------- interactions ---------- */
+$("prev").onclick=()=>{state.date=shift(state.date,-1);state.calMonth=parseDate(state.date);render()};
+$("next").onclick=()=>{state.date=shift(state.date,1);state.calMonth=parseDate(state.date);render()};
+$("today").onclick=$("dlabel").onclick=()=>{state.date=iso(new Date());state.calMonth=new Date();render()};
+$("calprev").onclick=()=>{state.calMonth=new Date(state.calMonth.getFullYear(),state.calMonth.getMonth()-1,1);renderCal()};
+$("calnext").onclick=()=>{state.calMonth=new Date(state.calMonth.getFullYear(),state.calMonth.getMonth()+1,1);renderCal()};
+
+document.addEventListener("change",e=>{
+  const t=e.target, s=state.date, d=day(s);
+  if(t.dataset.leaf!==undefined){
+    const [ns,key]=nsplit(t.dataset.leaf), f=ns==="h"?"habits":"workout";
+    saveDay(s,{[f]:Object.assign({},d[f],{[key]:t.checked})});
+  }
+  else if(t.dataset.parent!==undefined){
+    const [ns,name]=nsplit(t.dataset.parent), f=ns==="h"?"habits":"workout";
+    const tree=ns==="h"?habitTree():planTree(s), next=Object.assign({},d[f]);
+    const group=tree.find(x=>!x.header&&x.name===name);
+    leavesOf(group?[group]:[])
+      .filter(k=>ns!=="h"||(isDueOn(k,s)&&slipOf(k.key,s)===null))
+      .forEach(k=>next[k.key]=t.checked);
+    saveDay(s,{[f]:next});
+  }
+  else if(t.dataset.task!==undefined) patchTask(t.dataset.task,{done:t.checked,doneOn:t.checked?s:null});
+  else if(t.dataset.taskproj!==undefined) patchTask(t.dataset.taskproj,{p:t.value});
+  else if(t.dataset.status!==undefined) saveProjects((state.projects.items||[]).map(p=>p.id===t.dataset.status?Object.assign({},p,{status:t.value}):p));
+});
+document.addEventListener("click",e=>{
+  const b=e.target.closest("[data-deltask],[data-delproj],[data-day],[data-sect],[data-run]"); if(!b) return;
+  if(b.dataset.sect!==undefined){ state.openSects[b.dataset.sect]=true; return renderHabits() }
+  if(b.dataset.run!==undefined) return slipRun(b.dataset.run);
+  const s=state.date, d=day(s);
+  if(b.dataset.deltask!==undefined){
+    const [src,i]=taskRef(b.dataset.deltask);
+    saveDay(src,{tasks:(day(src).tasks||[]).filter((_,j)=>j!==i)});
+  }
+  else if(b.dataset.delproj!==undefined) saveProjects((state.projects.items||[]).filter(p=>p.id!==b.dataset.delproj));
+  else if(b.dataset.day){state.date=b.dataset.day;render()}
+});
+/* A slip is logged on the day being looked at — today, or a day you forgot to
+   log — and un-ticks "held" for it, since that day wasn't. Tapping again undoes
+   it; it doesn't re-tick, because that was the owner's to say. */
+function slipRun(key){
+  const s=state.date, d=day(s), name=key.split("/").pop(), at=slipOf(key,s), slips=Object.assign({},d.slips);
+  if(at!==null){
+    if(!confirm("Отменить срыв"+(at?" в "+at:"")+": «"+name+"»?")) return;
+    delete slips[key];
+    return saveDay(s,{slips});
+  }
+  const now=new Date(), today=s===iso(now);
+  if(!confirm("Срыв: «"+name+"»?\nСчёт начнётся заново"+(today?" с этого момента.":" с того дня."))) return;
+  slips[key]=today?String(now.getHours()).padStart(2,"0")+":"+String(now.getMinutes()).padStart(2,"0"):"";
+  saveDay(s,{slips,habits:Object.assign({},d.habits,{[key]:false})});
+}
+
+function saveProjects(items){ state.projects={items}; put("config/projects",state.projects); render(); }
+
+$("taskform").onsubmit=e=>{
+  e.preventDefault();
+  const v=$("tasktext").value.trim(), p=$("taskproj").value; if(!v||!p) return;
+  saveDay(state.date,{tasks:(day(state.date).tasks||[]).concat([{text:v,done:false,p}])});
+  $("tasktext").value="";
+};
+$("projform").onsubmit=e=>{
+  e.preventDefault();
+  const v=$("projname").value.trim(); if(!v) return;
+  saveProjects((state.projects.items||[]).concat([{id:Date.now().toString(36),name:v,status:"active"}]));
+  $("projname").value="";
+};
+$("skip").onclick=()=>saveDay(state.date,{skip:!skipped(state.date)});
+
+/* ---------- setup dialog ---------- */
+$("settings").onclick=()=>{
+  $("fhabits").value=state.habits.text!==undefined?state.habits.text:(state.habits.items||[]).join("\n");
+  $("fcreed").value=state.creed.text||"";
+  const sc=syncCfg();
+  $("srepo").value=sc.repo||""; $("sbranch").value=sc.branch||""; $("stoken").value=sc.token||"";
+  $("dlg").showModal();
+};
+/* Editing a habit's wording would otherwise orphan every tick recorded under the
+   old wording. When the list is the same shape and only wording changed, carry
+   the history across; anything else (added or removed habits) is left alone. */
+function renameHistory(before,after){
+  if(before.length!==after.length) return 0;
+  const pairs=before.map((k,i)=>[k,after[i]]).filter(([o,n])=>o!==n);
+  if(!pairs.length) return 0;
+  let moved=0;
+  Object.keys(state.days).forEach(s=>{
+    const h=Object.assign({},state.days[s].habits||{});
+    let touched=false;
+    pairs.forEach(([o,n])=>{ if(o in h){ h[n]=h[o]; delete h[o]; touched=true; moved++ } });
+    if(touched) saveDay(s,{habits:h});
+  });
+  return moved;
+}
+
+$("setupform").onsubmit=e=>{
+  if(e.submitter && e.submitter.value!=="save") return;
+  const before=leaves().map(l=>l.key);
+  // keep whatever else the record carries (the migration flag, anything added later);
+  // rebuilding it from the two visible fields silently threw those away
+  state.habits=Object.assign({},state.habits,{text:$("fhabits").value});
+  delete state.habits.items;
+  renameHistory(before,leaves().map(l=>l.key));
+  state.creed={text:$("fcreed").value.trim()};
+  put("config/habits",state.habits); put("config/creed",state.creed);
+  lsSet("sync",{repo:$("srepo").value.trim().replace(/^https?:\/\/github\.com\//,"").replace(/\.git$/,""),
+                branch:$("sbranch").value.trim()||"main",
+                token:$("stoken").value.trim(), last:syncCfg().last});
+  render();
+  sync();
+};
+
+/* ---------- sync: the repo is the server ----------
+   One file, data/daydesk.json, holding every document plus the time each was
+   last written. Merging is per document: the newer side wins that document,
+   so two devices editing different days both survive. Two devices editing the
+   SAME day is last-writer-wins on that day. */
+const REMOTE="data/daydesk.json";
+const syncCfg=()=>lsGet("sync")||{};
+let syncTimer=null, syncing=false;
+
+/* The header only carries sync once it's set up; "off" forever is just noise in
+   the most valuable strip of the screen. It lives in Setup until then. */
+function setSync(st,label,title){
+  const b=$("syncbtn");
+  b.hidden=st==="off";
+  b.dataset.state=st; b.textContent=label; b.title=title||"Синхронизация через GitHub";
+}
+function b64(str){
+  const bytes=new TextEncoder().encode(str); let out="";
+  for(let i=0;i<bytes.length;i+=0x8000) out+=String.fromCharCode.apply(null,bytes.subarray(i,i+0x8000));
+  return btoa(out);
+}
+const unb64=b=>new TextDecoder().decode(Uint8Array.from(atob(b.replace(/\s/g,"")),c=>c.charCodeAt(0)));
+
+function ghHeaders(){
+  const c=syncCfg();
+  return {Authorization:"Bearer "+c.token,Accept:"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"};
+}
+function ghFetch(method,body){
+  const c=syncCfg(), branch=c.branch||"main";
+  const url="https://api.github.com/repos/"+c.repo+"/contents/"+REMOTE+(method==="GET"?"?ref="+encodeURIComponent(branch):"");
+  const o={method,headers:ghHeaders()};
+  if(body){ o.headers["Content-Type"]="application/json"; o.body=JSON.stringify(body) }
+  return fetch(url,o);
+}
+/* Your history is nobody else's business. Refuse to write it into a repository
+   the world can read — checked on every sync, because a repo can be flipped
+   public long after it was set up here. */
+async function repoIsPrivate(){
+  const r=await fetch("https://api.github.com/repos/"+syncCfg().repo,{headers:ghHeaders()});
+  if(r.status===401||r.status===403) throw new Error("токен отклонён ("+r.status+")");
+  if(r.status===404) throw new Error("репозиторий не найден");
+  if(!r.ok) throw new Error("GitHub "+r.status);
+  return (await r.json()).private===true;
+}
+/* take each side's newer copy of each document; report which side moved */
+function mergeRemote(remote){
+  const stamps=lsGet("u")||{}, rdocs=(remote&&remote.docs)||{}, ru=(remote&&remote.u)||{};
+  let pulled=0, pushable=false;
+  Object.keys(rdocs).forEach(path=>{
+    if((ru[path]||0)>(stamps[path]||0)){ lsSet(path,rdocs[path]); stamps[path]=ru[path]; pulled++ }
+  });
+  lsSet("u",stamps);
+  Object.keys(allLocal()).forEach(path=>{ if((stamps[path]||0)>(ru[path]||0)) pushable=true });
+  return {pulled,pushable};
+}
+
+async function sync(){
+  const c=syncCfg();
+  if(db) return;
+  if(!c.repo||!c.token) return setSync("off","Синхр. выкл","Укажи репозиторий и токен в Настройке");
+  if(syncing) return;
+  syncing=true; setSync("busy","Синхр…");
+  try{
+    if(!await repoIsPrivate())
+      throw new Error(c.repo+" — открытый репозиторий: историю увидит кто угодно. Укажи закрытый или пользуйся резервной копией.");
+    let remote=null, sha=null;
+    const r=await ghFetch("GET");
+    if(r.status===200){ const j=await r.json(); sha=j.sha; remote=JSON.parse(unb64(j.content)); }
+    else if(r.status===401||r.status===403) throw new Error("токен отклонён ("+r.status+")");
+    else if(r.status===404 && !r.headers.get("x-ratelimit-remaining")) throw new Error("репозиторий не найден");
+    else if(r.status!==404) throw new Error("GitHub "+r.status);
+
+    const {pulled,pushable}=mergeRemote(remote);
+    if(pushable||!remote){
+      const payload={v:1,u:lsGet("u")||{},docs:allLocal()};
+      const body={message:"Day Desk "+iso(new Date()),content:b64(JSON.stringify(payload,null,1)),branch:c.branch||"main"};
+      if(sha) body.sha=sha;
+      const w=await ghFetch("PUT",body);
+      if(w.status===409||w.status===422) throw new Error("изменено на другом устройстве — повторю чуть позже");
+      if(!w.ok) throw new Error("GitHub "+w.status);
+    }
+    if(pulled){ loadLocal(); applyMigrations(); render() }
+    lsSet("sync",Object.assign({},c,{last:Date.now()}));
+    setSync("ok","Синхр. ✓","Последняя синхронизация в "+new Date().toLocaleTimeString("ru-RU"));
+    $("offline").innerHTML="";
+  }catch(e){
+    const offline=!navigator.onLine;
+    setSync("err",offline?"Нет сети":"Синхр. ⚠",offline?"Нет связи — синхронизирую, когда появится":String(e.message));
+    if(!offline) note("Синхронизация: "+e.message);
+  }finally{ syncing=false }
+}
+/* An installed app resumes from memory rather than reloading, so anything that
+   depends on the clock has to be re-checked: a section opening at its hour, and
+   the day itself rolling over while the app sat in the background. */
+let loadedToday=iso(new Date());
+function onClock(){
+  const t=iso(new Date());
+  if(t!==loadedToday){
+    if(state.date===loadedToday){ state.date=t; state.calMonth=new Date() }
+    loadedToday=t;
+  }
+  render();
+}
+document.addEventListener("visibilitychange",()=>{ if(!document.hidden){ onClock(); sync() } });
+setInterval(()=>{ if(!document.hidden) onClock() },5*60*1000);
+addEventListener("online",sync);
+$("syncbtn").onclick=()=>sync();
+
+/* ---------- reminder ----------
+   The app has no server to push a notification from, and a web page on a phone
+   can't schedule an alarm by itself. The phone's calendar can: this writes a
+   daily event with an alert that the calendar delivers. Floating local time, so
+   21:00 stays 21:00 wherever the phone is. */
+const icsEscape=t=>String(t).replace(/\\/g,"\\\\").replace(/;/g,"\;").replace(/,/g,"\\,").replace(/\r?\n/g,"\\n");
+function icsFold(line){                        // RFC 5545: 75 octets a line, continuations start with a space
+  const enc=new TextEncoder(), out=[];
+  let cur="", n=0;
+  for(const ch of line){
+    const b=enc.encode(ch).length, room=out.length?74:75;
+    if(n+b>room){ out.push(cur); cur=""; n=0 }
+    cur+=ch; n+=b;
+  }
+  out.push(cur);
+  return out.join("\r\n ");
+}
+function buildIcs(time,now,url){
+  const [H,M]=time.split(":").map(Number);
+  const start=new Date(now.getFullYear(),now.getMonth(),now.getDate(),H,M);
+  if(start<=now) start.setDate(start.getDate()+1);
+  const p=n=>String(n).padStart(2,"0");
+  const local=d=>d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+"T"+p(d.getHours())+p(d.getMinutes())+"00";
+  const stamp=now.toISOString().replace(/[-:]/g,"").replace(/\.\d{3}/,"");
+  const evening=H>=12, title="День — "+(evening?"вечерняя отметка":"утро");
+  let host="daydesk"; try{ host=new URL(url).host||host }catch(e){}
+  return [
+    "BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Day Desk//EN","CALSCALE:GREGORIAN","METHOD:PUBLISH",
+    "BEGIN:VEVENT",
+    "UID:daydesk-reminder-"+p(H)+p(M)+"@"+host,          // the same time again replaces, not duplicates
+    "DTSTAMP:"+stamp,
+    "DTSTART:"+local(start),
+    "DURATION:PT5M",
+    "RRULE:FREQ=DAILY",
+    "SUMMARY:"+icsEscape(title),
+    "DESCRIPTION:"+icsEscape((evening?"Отметь то, что становится ясно только к вечеру.":"Начни список дня.")+"\n"+url),
+    "URL:"+url,
+    "BEGIN:VALARM","ACTION:DISPLAY","DESCRIPTION:"+icsEscape(title),"TRIGGER:PT0M","END:VALARM",
+    "END:VEVENT","END:VCALENDAR",
+  ].map(icsFold).join("\r\n")+"\r\n";
+}
+$("fics").onclick=()=>{
+  const t=$("ftime").value||"21:00";
+  const url=location.origin+location.pathname.replace(/[^/]*$/,"");
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([buildIcs(t,new Date(),url)],{type:"text/calendar"}));
+  a.download="day-desk-"+t.replace(":","")+".ics";
+  a.click(); URL.revokeObjectURL(a.href);
+  $("fics-note").textContent="Открой файл, чтобы добавить — каждый день в "+t+".";
+};
+
+/* ---------- backup ---------- */
+/* Everything lives in this browser. Ask it to keep the data even under storage
+   pressure, and keep track of when it was last exported, so losing the phone
+   is not the same as losing the history. */
+let persisted=null;
+function protectStorage(){
+  if(!(navigator.storage&&navigator.storage.persist)) return;
+  navigator.storage.persisted()
+    .then(p=>p||navigator.storage.persist())
+    .then(p=>{ persisted=p; render() })
+    .catch(()=>{});
+}
+function backupAge(){
+  const b=lsGet("backup");
+  return b&&b.at?Math.floor((Date.now()-b.at)/864e5):null;
+}
+/* Only nags when it matters: standalone, not syncing elsewhere, a few days of
+   real history, and no export in two weeks. */
+function backupNudge(){
+  if(db) return "";
+  const c=syncCfg(); if(c.repo&&c.token) return "";
+  if(Object.keys(state.days).length<3) return "";
+  const age=backupAge();
+  if(age!==null&&age<14) return "";
+  return age===null?"Всё только на этом телефоне — сделай копию"
+                   :"Копия была "+age+" дн. назад — сделай свежую";
+}
+function renderBackup(){
+  const msg=backupNudge(), n=$("nudge");
+  n.hidden=!msg; n.textContent=msg;
+  const age=backupAge();
+  $("fbackup").textContent=
+    (age===null?"С этого устройства ещё не выгружалось.":age===0?"Выгружено сегодня.":"Последняя выгрузка — "+age+" дн. назад.")
+    +(persisted===true?" Браузер согласился хранить данные.":persisted===false?" Браузер может удалить данные, если на телефоне кончится место, — держи свежую выгрузку.":"");
+}
+function snapshot(){
+  return {v:1, exported:new Date().toISOString(),
+    config:{habits:state.habits,workout:state.workout,creed:state.creed,projects:state.projects},
+    days:state.days};
+}
+$("nudge").onclick=()=>{ $("settings").click(); $("fexport").scrollIntoView({block:"center"}) };
+$("fexport").onclick=()=>{
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([JSON.stringify(snapshot(),null,2)],{type:"application/json"}));
+  a.download="day-desk-"+iso(new Date())+".json";
+  a.click(); URL.revokeObjectURL(a.href);
+  lsSet("backup",{at:Date.now()});
+  render();
+  $("fio").textContent="Выгружено.";
+};
+$("fimport").onclick=()=>$("ffile").click();
+$("ffile").onchange=async e=>{
+  const f=e.target.files[0]; if(!f) return;
+  try{
+    const d=JSON.parse(await f.text());
+    if(!d||!d.config||!d.days) throw new Error("это не выгрузка «Дня»");
+    const c=d.config;
+    state.habits=c.habits||state.habits; state.workout=c.workout||state.workout;
+    state.creed=c.creed||state.creed; state.projects=c.projects||state.projects;
+    put("config/habits",state.habits); put("config/workout",state.workout);
+    put("config/creed",state.creed); put("config/projects",state.projects);
+    Object.keys(d.days).forEach(k=>{ state.days[k]=d.days[k]; put("days/"+k,d.days[k]) });
+    render();
+    $("fio").textContent="Загружено дней: "+Object.keys(d.days).length+".";
+  }catch(err){ $("fio").textContent="Не получилось прочитать файл: "+err.message; }
+  e.target.value="";
+};
+
+render();
+connect();
+
+/* No service worker of its own: this page lives inside Гиря, whose worker
+   already covers ./day/, caches it, and brings updates in for the whole app. */
+</script>
+</body>
+</html>
