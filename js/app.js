@@ -1,17 +1,17 @@
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=74';
-import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON, restartProgram } from './store.js?v=74';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=75';
+import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON, restartProgram } from './store.js?v=75';
 import {
   planFor, applySession, summarizeItem, readinessMult, readinessLabel,
   waveIndex, weekIndex, wave, isDeload, acwr, streak, sessionLoad, tonnage, nextStepText, stepText, dayIndex,
   estimateMinutes, pairRealRest, paceFactor, blockStatus, nextBlockSuggestions, commitCycle
-} from './progression.js?v=74';
-import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=74';
-import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=74';
+} from './progression.js?v=75';
+import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=75';
+import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=75';
 
 // byId должен видеть и свои записи пользователя, поэтому оборачиваем
 const byId = (id) => suppById(id, S);
-import { timer, fmt, unlockAudio } from './timer.js?v=74';
-import { barChart, gauge } from './charts.js?v=74';
+import { timer, fmt, unlockAudio } from './timer.js?v=75';
+import { barChart, gauge } from './charts.js?v=75';
 
 // ── Мелкие помощники ─────────────────────────────────────────────────────────
 // Версия берётся из адреса самого модуля: она не может разойтись с тем,
@@ -114,7 +114,6 @@ function render() {
   if (tab === 'today') { screen.innerHTML = viewToday(); }
   if (tab === 'test') { screen.innerHTML = viewTest(); }
   if (tab === 'supps') { screen.innerHTML = viewSupps(); }
-  if (tab === 'timer') { screen.innerHTML = viewTimer(); }
   if (tab === 'history') { screen.innerHTML = viewHistory(); }
   if (tab === 'progress') { screen.innerHTML = viewProgress(); }
   if (tab === 'settings') { screen.innerHTML = viewSettings(); }
@@ -930,69 +929,16 @@ function viewSupps() {
   </div>`;
 }
 
-// ── Экран «Таймер» ───────────────────────────────────────────────────────────
-let timerCfg = { work: 60, rounds: 10 };
-
-function viewTimer() {
-  setTop('Таймер', 'Отдых, интервалы и секундомер');
-  return `
-  <div class="card" id="timerCard">${timerBody()}</div>
-
-  <h3>Быстрый отдых</h3>
-  <div class="chips">
-    ${[30, 45, 60, 75, 90, 120, 180].map(s => `<button class="chip" data-act="quick-rest" data-v="${s}">${s < 60 ? s + ' сек' : fmt(s)}</button>`).join('')}
-  </div>
-
-  <h3>Интервалы (каждую минуту)</h3>
-  <div class="card">
-    <label class="field"><span>Интервал, секунд</span>
-      <input type="number" inputmode="numeric" id="emomWork" value="${timerCfg.work}" min="10" max="600"></label>
-    <label class="field"><span>Сколько кругов</span>
-      <input type="number" inputmode="numeric" id="emomRounds" value="${timerCfg.rounds}" min="1" max="60"></label>
-    <button class="btn" data-act="start-emom">Запустить</button>
-  </div>
-
-  <h3>Секундомер</h3>
-  <button class="btn ghost" data-act="stopwatch">Включить секундомер</button>`;
-}
-
-function timerBody() {
-  if (!timer.running) {
-    return `<p class="timer-label">Таймер не запущен</p>
-      <div class="timer-big" id="tBig">0:00</div>
-      <p class="muted small center mb0">Звук включается после первого касания экрана — так требует браузер.</p>`;
-  }
-  const t = timer.mode === 'stopwatch' ? timer.elapsed() : timer.remaining();
-  const sub = timer.mode === 'emom' ? `круг ${timer.round} из ${timer.totalRounds}` : timer.label;
-  return `
-    <p class="timer-label" id="tLabel">${h(sub)}</p>
-    <div class="timer-big" id="tBig">${fmt(t)}</div>
-    <div class="timer-grid">
-      <button class="btn ghost sm" data-act="t-pause" style="width:100%">${timer.paused ? 'Дальше' : 'Пауза'}</button>
-      <button class="btn ghost sm" data-act="t-add" data-v="15" style="width:100%">+15 сек</button>
-      <button class="btn ghost sm" data-act="t-stop" style="width:100%">Стоп</button>
-    </div>`;
-}
-
-function updateTimerScreen() {
-  const card = $('#timerCard');
-  if (!card) return;
-  const big = $('#tBig');
-  if (!big || !timer.running) { card.innerHTML = timerBody(); return; }
-  big.textContent = fmt(timer.mode === 'stopwatch' ? timer.elapsed() : timer.remaining());
-  const lab = $('#tLabel');
-  if (lab) lab.textContent = timer.mode === 'emom' ? `круг ${timer.round} из ${timer.totalRounds}` : timer.label;
-}
-
 function updateRestbar() {
   const bar = $('#restbar');
-  if (!timer.running || tab === 'timer') { bar.hidden = true; return; }
+  if (!timer.running) { bar.hidden = true; return; }
   bar.hidden = false;
   const t = timer.mode === 'stopwatch' ? timer.elapsed() : timer.remaining();
   const label = timer.mode === 'emom' ? `Круг ${timer.round}/${timer.totalRounds}` : timer.label;
   bar.innerHTML = `<div class="restbar-in">
       <div class="restbar-time">${fmt(t)}</div>
       <div class="grow small">${h(label)}</div>
+      <button data-act="t-pause">${timer.paused ? 'Дальше' : 'Пауза'}</button>
       <button data-act="t-add" data-v="15">+15</button>
       <button data-act="t-stop">Стоп</button>
     </div>`;
@@ -1743,17 +1689,8 @@ const actions = {
       <p class="muted center small">Перетестироваться стоит через 8–12 недель или после перерыва длиннее двух недель.</p>
       <button class="btn" data-act="close-sheet">Понятно</button>`);
   },
-  'quick-rest'(el) { unlockAudio(); startRest(+el.dataset.v); render(); },
-  'start-emom'() {
-    unlockAudio();
-    timerCfg.work = Math.max(5, +$('#emomWork').value || 60);
-    timerCfg.rounds = Math.max(1, +$('#emomRounds').value || 10);
-    timer.startEmom(timerCfg.work, timerCfg.rounds, 'Интервалы');
-    render();
-  },
-  stopwatch() { unlockAudio(); timer.startStopwatch(); render(); },
   't-pause'() { timer.paused ? timer.resume() : timer.pause(); render(); },
-  't-add'(el) { timer.addTime(+el.dataset.v); updateTimerScreen(); updateRestbar(); },
+  't-add'(el) { timer.addTime(+el.dataset.v); updateRestbar(); },
   't-stop'() { timer.onFinish = null; timer.stop(); render(); },
   goweights() {
     tab = 'settings';
@@ -1912,7 +1849,7 @@ document.addEventListener('change', (e) => {
   if (el && actions[el.dataset.act]) actions[el.dataset.act](el);
 });
 
-timer.onUpdate = () => { updateRestbar(); if (tab === 'timer') updateTimerScreen(); };
+timer.onUpdate = () => { updateRestbar(); };
 
 // ── Связь с «Днём» ───────────────────────────────────────────────────────────
 // «День» живёт в рамке на том же сайте и спрашивает отсюда, что с тренировкой.

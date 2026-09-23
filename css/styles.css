@@ -179,14 +179,6 @@ details.tips summary::-webkit-details-marker { display: none; }
 details.tips summary::before { content: '＋ '; }
 details.tips[open] summary::before { content: '－ '; }
 
-/* ── Таймер ─────────────────────────────────────────────── */
-.timer-big {
-  font-size: clamp(56px, 22vw, 96px); font-weight: 800; letter-spacing: -0.04em;
-  text-align: center; font-variant-numeric: tabular-nums; line-height: 1.05;
-}
-.timer-label { text-align: center; color: var(--muted); font-size: 15px; margin-bottom: 6px; }
-.timer-ring { display: block; margin: 0 auto 8px; }
-.timer-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 14px; }
 
 .restbar {
   position: fixed; left: 0; right: 0; bottom: calc(64px + env(safe-area-inset-bottom));
