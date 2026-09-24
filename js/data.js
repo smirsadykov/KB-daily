@@ -19,7 +19,7 @@ export const EXERCISES = {
     ]
   },
   swing_2h: {
-    name: 'Свинг двумя руками',
+    name: 'Свинг одной гирей двумя руками',
     short: 'Свинг 2р',
     kind: 'ballistic', pattern: 'hinge', side: 'both',
     load: 'ballistic',
