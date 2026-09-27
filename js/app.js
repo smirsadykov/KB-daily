@@ -1,17 +1,17 @@
-import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=77';
-import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON, restartProgram } from './store.js?v=77';
+import { EXERCISES, PROGRAMS, TRACKS, waveFor, DELOAD_OPTIONS, RPE_SCALE, rpeLabel, WARMUP, COOLDOWN } from './data.js?v=78';
+import { getState, save, update, resetAll, setBells, todayISO, exportJSON, importJSON, restartProgram } from './store.js?v=78';
 import {
   planFor, applySession, summarizeItem, readinessMult, readinessLabel,
   waveIndex, weekIndex, wave, isDeload, acwr, streak, sessionLoad, tonnage, nextStepText, stepText, dayIndex,
   estimateMinutes, pairRealRest, paceFactor, blockStatus, nextBlockSuggestions, commitCycle
-} from './progression.js?v=77';
-import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=77';
-import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=77';
+} from './progression.js?v=78';
+import { TESTS, TEST_ORDER, computePlacement, applyPlacement, readinessForTest } from './assessment.js?v=78';
+import { SUPPLEMENTS, TIERS, TIMING, SOURCES, DOPING_WARNING, DIET_FIRST, CUSTOM_NOTE, doseFor, byId as suppById } from './supplements.js?v=78';
 
 // byId должен видеть и свои записи пользователя, поэтому оборачиваем
 const byId = (id) => suppById(id, S);
-import { timer, fmt, unlockAudio } from './timer.js?v=77';
-import { barChart, gauge } from './charts.js?v=77';
+import { timer, fmt, unlockAudio } from './timer.js?v=78';
+import { barChart, gauge } from './charts.js?v=78';
 
 // ── Мелкие помощники ─────────────────────────────────────────────────────────
 // Версия берётся из адреса самого модуля: она не может разойтись с тем,
@@ -999,8 +999,80 @@ function weekKey(iso) {
   return todayISO(d);
 }
 
+// ── Всё вместе: привычки, аскезы, тренировки, задачи ─────────────────────────
+// Считает «День» — там правила расписаний, курсов и серий, и вторая их копия
+// здесь разъехалась бы с первой. Отсюда только спрашиваем итог и рисуем.
+// Рамка «Дня» обычно уже загружена: это первая вкладка.
+function dayProgress() {
+  const f = $('#dayFrame');
+  if (f.contentWindow?.dayStats) { try { return f.contentWindow.dayStats(30); } catch (e) { return null; } }
+  if (!f.getAttribute('src')) f.src = './day/';
+  f.addEventListener('load', () => { if (tab === 'progress') render(); }, { once: true });
+  return null;
+}
+
+function viewAllProgress() {
+  const d = dayProgress();
+  if (!d) return `<h3>Всё вместе</h3><div class="card"><p class="muted small mb0">Загружаю «День»…</p></div><h3>Гиря</h3>`;
+  // тренировки считаем днями: гиря — дни с записью в дневнике, плюс отмеченные
+  // вручную до слияния; БЖЖ — отметки в «Дне». Сегодня входит, если уже было.
+  const kbDays = new Set(S.sessions.filter(s => s.type !== 'rest').map(s => s.date));
+  d.weightDays.forEach(k => kbDays.add(k));
+  const bjjDays = new Set(d.bjjDays);
+  const inPeriod = k => k >= d.from && k <= d.today;
+  const kb30 = [...kbDays].filter(inPeriod).length, bjj30 = [...bjjDays].filter(inPeriod).length;
+
+  const weeks = [];
+  const monday = new Date(weekKey(todayISO()) + 'T00:00:00');
+  for (let i = 7; i >= 0; i--) {
+    const x = new Date(monday); x.setDate(x.getDate() - 7 * i);   // setDate — не миллисекунды, чтобы перевод часов не сдвинул неделю
+    const k = todayISO(x), inWeek = y => weekKey(y) === k;
+    const a = [...kbDays].filter(inWeek).length, b = [...bjjDays].filter(inWeek).length;
+    weeks.push({ label: `${prettyDate(k)}: гиря ${a}, БЖЖ ${b}`, short: prettyDate(k).split(' ')[0], value: a + b,
+      parts: [{ value: a, color: 'var(--accent)' }, { value: b, color: 'var(--good)' }] });
+  }
+  const pct = v => v == null ? '—' : v + '%';
+  const bar = (v) => `<div class="ex-prog"><i style="width:${Math.max(0, Math.min(100, v))}%"></i></div>`;
+
+  return `
+  <h3>Всё вместе · 30 дней</h3>
+  <div class="stat-grid">
+    <div class="stat"><b>${pct(d.habits.rate)}</b><span>привычки выполнены${d.habits.rate7 != null ? ` · за 7 дн. ${d.habits.rate7}%` : ''}</span></div>
+    <div class="stat"><b>${kb30 + bjj30}</b><span>дней тренировок · гиря ${kb30}, БЖЖ ${bjj30}</span></div>
+    <div class="stat"><b>${d.tasks.closed}</b><span>закрыто задач${d.tasks.open ? ` · открыто ${d.tasks.open}` : ''}</span></div>
+  </div>
+
+  <h3>Тренировки по неделям</h3>
+  <div class="card">
+    ${barChart(weeks)}
+    <div class="legend-row"><span><i class="sw" style="background:var(--accent)"></i>гиря</span><span><i class="sw" style="background:var(--good)"></i>БЖЖ</span></div>
+  </div>
+
+  ${d.runs.length ? `
+  <h3>Аскезы</h3>
+  <div class="card">${d.runs.map(r => `
+    <div class="prog-row">
+      <div class="row between"><span>${h(r.name)}</span>
+        <span class="muted small">${r.current} из ${r.target}${r.best > r.current ? ` · лучший ${r.best}` : ''}${r.slips ? ` · срывов ${r.slips}` : ''}</span></div>
+      ${bar(r.current / r.target * 100)}
+    </div>`).join('')}
+  </div>` : ''}
+
+  ${d.habits.per.length ? `
+  <h3>Привычки</h3>
+  <div class="card">${d.habits.per.map(p => `
+    <div class="prog-row">
+      <div class="row between"><span>${h(p.name)}</span><span class="muted small">${p.rate}% · ${p.done} из ${p.due}</span></div>
+      ${bar(p.rate)}
+    </div>`).join('')}
+    <p class="muted small mt mb0">Сверху — то, что выполняется реже всего. Каждая привычка считается с первого дня, когда её отметил; сегодняшний день не входит — он ещё не закончился.</p>
+  </div>` : ''}
+
+  <h3>Гиря</h3>`;
+}
+
 function viewProgress() {
-  setTop('Прогресс', 'Что выросло и куда идём');
+  setTop('Прогресс', 'Всё вместе и гиря подробно');
   const real = S.sessions.filter(s => s.type !== 'rest');
   const st = streak(S.sessions);
   const totalT = real.reduce((a, s) => a + tonnage(s), 0);
@@ -1025,6 +1097,7 @@ function viewProgress() {
   for (const day of prog.days) for (const sl of day.slots) usedEx.add(sl.ex + '|' + sl.track);
 
   return `
+  ${viewAllProgress()}
   <div class="stat-grid">
     <div class="stat"><b>${st}</b><span>дней подряд</span></div>
     <div class="stat"><b>${real.length}</b><span>тренировок</span></div>

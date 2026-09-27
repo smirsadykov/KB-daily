@@ -24,11 +24,12 @@ const source = [
   grab(/function weekDays\(s\)\{[\s\S]*?\n\}/, "weekDays"),
   grab(/function cyclePhase\(sc,s,anchor\)\{[\s\S]*?\n\}/, "cyclePhase"),
   grab(/function runLength\(key,s,ticked,isSkipped,slipped\)\{[\s\S]*?\n\}/, "runLength"),
+  grab(/function runHistory\(start,today,ticked,isSkipped,slipped,since\)\{[\s\S]*?\n\}/, "runHistory"),
   grab(/function dueOn\(it,s,habitsFor,firstTick\)\{[\s\S]*?\n\}/, "dueOn"),
 ].join("\n");
 
-const { parseSched, parseHeader, parseTree, leavesOf, dueOn, weekDays, cyclePhase, runLength } =
-  new Function(source + "\nreturn {parseSched,parseHeader,parseTree,leavesOf,dueOn,weekDays,cyclePhase,runLength};")();
+const { parseSched, parseHeader, parseTree, leavesOf, dueOn, weekDays, cyclePhase, runLength, runHistory } =
+  new Function(source + "\nreturn {parseSched,parseHeader,parseTree,leavesOf,dueOn,weekDays,cyclePhase,runLength,runHistory};")();
 
 // 2026-09-14 is a Monday
 const MON = "2026-09-14", TUE = "2026-09-15", WED = "2026-09-16", SUN = "2026-09-20";
@@ -177,3 +178,26 @@ assert.deepEqual(leavesOfH(parseTreeH(withSections, true)).map(l => l.key), leav
 assert.equal(parseTreeH("# Evening\n  stray", true)[1].key, "stray", "an indented line under a heading is a habit, not the heading's child");
 assert.equal(parseTreeH("# Not a heading", false)[0].name, "# Not a heading", "workout lines are never headings");
 console.log("sections: 7 checks passed");
+
+/* --- a run's history, for the progress page: best ever and slips in the period --- */
+{
+  const T = "2026-09-27", b = n => { const d = new Date(2026, 8, 27); d.setDate(d.getDate() - n); return d.toLocaleDateString("en-CA"); };
+  const set = (...o) => { const x = new Set(o.map(b)); return k => x.has(k) };
+  const none = () => false;
+  // held 5 days, broke (unticked) 6 days ago, then held 5 more up to yesterday; today still open
+  let r = runHistory(b(12), T, set(12, 11, 10, 9, 8, 5, 4, 3, 2, 1), none, none, b(30));
+  assert.equal(r.best, 5, "two runs of five: best is five");
+  r = runHistory(b(10), T, set(10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0), none, none, b(30));
+  assert.equal(r.best, 11, "an unbroken run up to and including today");
+  r = runHistory(b(6), T, set(6, 5, 4, 2, 1), none, set(3), b(30));
+  assert.equal(r.best, 3, "a slip ends a run");
+  assert.equal(r.slips, 1, "and is counted");
+  r = runHistory(b(40), T, set(40, 39, 38), none, set(35, 2), b(30));
+  assert.equal(r.slips, 1, "only slips inside the period are counted");
+  r = runHistory(b(4), T, set(4, 3, 1), set(2), none, b(30));
+  assert.equal(r.best, 3, "a skipped day bridges the run without counting");
+  r = runHistory(b(3), T, set(3, 2, 1), none, none, b(30));
+  assert.equal(r.best, 3, "today not yet ticked doesn't break yesterday's run");
+  assert.deepEqual(runHistory(null, T, none, none, none, b(30)), { best: 0, slips: 0 }, "never started");
+  console.log("run history: 8 checks passed");
+}

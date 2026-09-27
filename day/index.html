@@ -601,6 +601,19 @@ function runLength(key,s,ticked,isSkipped,slipped){
   while(!slip(k)&&(ticked(k)||isSkipped(k))){ if(ticked(k)) n++; k=shift(k,-1) }
   return n;
 }
+/* A run's whole history, walked day by day from `start` to `today` with the same
+   rules as runLength: a tick adds a day, a deliberate skip bridges, a slip or an
+   unticked past day ends it, today still open does not. Returns the best run ever
+   and how many slips fell on or after `since`. */
+function runHistory(start,today,ticked,isSkipped,slipped,since){
+  let best=0,cur=0,slips=0;
+  if(start) for(let k=start;k<=today;k=shift(k,1)){
+    if(slipped(k)){ if(k>=since) slips++; cur=0; continue }
+    if(ticked(k)){ cur++; if(cur>best) best=cur }
+    else if(!isSkipped(k)&&k!==today) cur=0;
+  }
+  return {best,slips};
+}
 /* Is this habit wanted on this day? habitsFor(dateStr) returns that day's ticks;
    firstTick(key) the first day it was ever ticked, which anchors a course. */
 function dueOn(it,s,habitsFor,firstTick){
@@ -1113,6 +1126,56 @@ document.addEventListener("visibilitychange",()=>{ if(!document.hidden){ onClock
 setInterval(()=>{ if(!document.hidden) onClock() },5*60*1000);
 addEventListener("online",sync);
 $("syncbtn").onclick=()=>sync();
+
+/* ---------- progress, handed to Гиря's «Прогресс» tab ----------
+   Гиря draws the overall page; the counting stays here, next to the rules for
+   what counts as done (schedules, courses, runs, skips), so there is one copy of
+   them. Full days only — today isn't over — and each habit counts from the first
+   day it was ticked, so something added a week ago doesn't read as three weeks
+   missed. Runs are reported on their own, not inside the habit rate. */
+function dayStats(n){
+  n=n||30;
+  const today=iso(new Date()), from=shift(today,-n), end=shift(today,-1);
+  const rate=(a,b)=>b?Math.round(a/b*100):null;
+  const habitsBetween=(start)=>{
+    let due=0,done=0; const per={};
+    for(let k=start;k<=end;k=shift(k,1)){
+      if(skipped(k)) continue;
+      const ticks=habitsFor(k);
+      dueLeaves(k).forEach(l=>{
+        if(l.sched&&l.sched.type==="run") return;
+        const f=firstTickOf(l.key); if(!f||k<f) return;
+        const p=per[l.key]||(per[l.key]={name:l.key.replace("/"," · "),due:0,done:0});
+        p.due++; due++; if(ticks[l.key]){ p.done++; done++ }
+      });
+    }
+    return {rate:rate(done,due),per};
+  };
+  const h30=habitsBetween(from), h7=habitsBetween(shift(today,-7));
+  const runs=leaves().filter(l=>l.sched&&l.sched.type==="run").map(l=>{
+    const [ticked,isSkipped,slipped]=heldFor(l.key);
+    const current=runLength(l.key,today,ticked,isSkipped,slipped);
+    const hist=runHistory(firstTickOf(l.key),today,ticked,isSkipped,slipped,from);
+    return {name:l.name,current,best:Math.max(hist.best,current),target:l.sched.n,slips:hist.slips};
+  });
+  const bjjDays=[], weightDays=[];
+  Object.keys(state.days).forEach(k=>{ const w=state.days[k].workout||{};
+    if(w.BJJ) bjjDays.push(k);
+    if(w["Weight training"]) weightDays.push(k);          // ticked by hand before the merge
+  });
+  let closed=0,open=0,oldest=null;
+  Object.keys(state.days).forEach(k=>(state.days[k].tasks||[]).forEach(t=>{
+    if(t.done){ if((t.doneOn||k)>=from) closed++ } else { open++; if(!oldest||k<oldest) oldest=k }
+  }));
+  return {
+    days:n, from, today,
+    habits:{rate:h30.rate, rate7:h7.rate,
+      per:Object.values(h30.per).map(p=>({name:p.name,rate:rate(p.done,p.due),done:p.done,due:p.due}))
+        .sort((a,b)=>a.rate-b.rate)},
+    runs, bjjDays, weightDays,
+    tasks:{closed,open,oldestDays:oldest?daysAgo(oldest):null},
+  };
+}
 
 /* ---------- reminder ----------
    The app has no server to push a notification from, and a web page on a phone

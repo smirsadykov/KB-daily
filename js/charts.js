@@ -9,6 +9,15 @@ export function barChart(data, { height = 140, unit = '', accent = 'var(--accent
   const bars = data.map((d, i) => {
     const h = (d.value / max) * 100;
     const x = i * w;
+    // стопка: несколько рядов в одном столбце (гиря и БЖЖ за неделю)
+    if (d.parts) {
+      let y = 100;
+      const stack = d.parts.filter(p => p.value > 0).map(p => {
+        const ph = (p.value / max) * 100; y -= ph;
+        return `<rect x="${x + w * 0.15}" y="${y}" width="${w * 0.7}" height="${ph}" fill="${p.color}"><title>${esc(d.label)}</title></rect>`;
+      }).join('');
+      return stack || `<rect x="${x + w * 0.15}" y="99.2" width="${w * 0.7}" height="0.8" fill="var(--line)"><title>${esc(d.label)}</title></rect>`;
+    }
     const highlight = d.highlight ? 'var(--accent)' : accent;
     return `
       <g>
