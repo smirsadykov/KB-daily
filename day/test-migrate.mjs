@@ -107,3 +107,15 @@ assert.equal(hook(k1), k1, "a second pass changes nothing");
 assert.equal(hook("Без кальяна\n  ради: своё"), "Без кальяна\n  ради: своё", "a reason already written wins");
 assert.equal(addNote("Без порно @30d\nX", /^\s*без порно\s*(@\S+)?\s*$/i, ["ради: Энергия"]), "Без порно @30d\n  ради: Энергия\nX", "a top-level line, schedule and all");
 console.log("notes: 4 checks passed");
+
+/* --- the sixth: «Без лишних трат» out of the evening, run and bank with it --- */
+const oSrc = script.match(/function spendingOut\(text\)\{[\s\S]*?\n\}/);
+if (!oSrc) throw new Error("couldn't find spendingOut in index.html");
+const spendingOut = new Function(oSrc[0] + "\nreturn spendingOut;")();
+const list = "# Утро\nRead\n# Вечер @18\nАскеза @30d\n  Без кальяна\n    копилка Tank 300: +2000 ₽\n  Без лишних трат\n    копилка Tank 300: ₽\n  Без порно";
+const moved = spendingOut(list);
+assert.deepEqual(moved.split("\n").slice(0, 2), ["Без лишних трат @30d", "  копилка Tank 300: ₽"], "to the top, its run and bank with it");
+assert.ok(moved.includes("  Без кальяна\n    копилка Tank 300: +2000 ₽\n  Без порно"), "the rest of the group stays as it was");
+assert.equal(spendingOut(moved), moved, "a second pass changes nothing");
+assert.equal(spendingOut("Траты @7d\n  Без лишних трат"), "Траты @7d\n  Без лишних трат", "only out of the Аскеза group it was written in");
+console.log("spending out: 4 checks passed");

@@ -292,6 +292,7 @@ ul.tiles .txt{text-decoration:none;color:inherit}
 .kid.rich{flex-basis:100%}
 .tile>.more{display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:0 12px 10px}
 .tile:has(>.more)>label{height:auto;padding-bottom:8px}
+.tile:has(>.more){grid-column:1/-1}      /* a bank needs the width */
 .more .link{margin-top:2px}
 button.dep{background:none;border:0;padding:0;cursor:pointer;font:inherit;font-size:12.5px;color:var(--ink-2);text-align:left}
 button.dep::before{content:"✓ ";color:var(--accent)}
@@ -550,6 +551,22 @@ function addNote(text,re,extra){
   lines.splice(at+1,0,...extra.map(x=>pad+x));
   return lines.join("\n");
 }
+/* The urge to buy comes during the day, while the evening section is still
+   folded, so "Без лишних трат" moves out of the Аскеза group to the top of the
+   list, keeping its 30-day run and its lines under it. Its key loses the group
+   name, so the migration renames that key in the history too (see below). */
+function spendingOut(text){
+  const lines=(text||"").split("\n"), at=lines.findIndex(l=>/^\s+без лишних трат\s*$/i.test(l));
+  if(at<0) return text;
+  let g=at; while(g>0&&/^\s/.test(lines[g])) g--;
+  if(!/^аскеза @30d\s*$/i.test(lines[g])) return text;
+  const pad=lines[at].match(/^\s*/)[0].length;
+  let end=at+1;
+  while(end<lines.length&&lines[end].trim()&&lines[end].match(/^\s*/)[0].length>pad) end++;
+  const block=lines.splice(at,end-at).map(l=>l.slice(pad));
+  block[0]=block[0].trim()+" @30d";
+  return [...block,...lines].join("\n");
+}
 const MIGRATIONS=[
   ["2026-09-23-courses-and-runs",addRequestedHabits],
   ["2026-09-24-morning-evening",addSections],
@@ -561,13 +578,29 @@ const MIGRATIONS=[
   // what isn't spent goes to the same Tank 300 as the hookah money: one bank, by name
   ["2026-09-29-spending-bank",t=>addNote(t.replace(/^(\s*)копилка: \+2000 ₽ до 4200000$/m,"$1копилка Tank 300: +2000 ₽ до 4200000"),
     /^\s*без лишних трат\s*(@\S+)?\s*$/i,["копилка Tank 300: ₽"])],
+  ["2026-09-29-spending-out",spendingOut,{"Аскеза/Без лишних трат":"Без лишних трат"}],
 ];
+/* A migration that moves a habit to another group changes its key; its ticks,
+   slips and deposits are carried over to the new one, every day. */
+function renameKeys(map){
+  const mv=o=>{ const n={}; Object.keys(o||{}).forEach(k=>n[map[k]||k]=o[k]); return n };
+  Object.keys(state.days).forEach(k=>{
+    const d=state.days[k];
+    if(![d.habits,d.slips].some(o=>Object.keys(o||{}).some(x=>x in map))&&!(d.deposits||[]).some(x=>x.key in map)) return;
+    const next=Object.assign({},d,{habits:mv(d.habits)});
+    if(d.slips) next.slips=mv(d.slips);
+    if(d.deposits) next.deposits=d.deposits.map(x=>Object.assign({},x,{key:map[x.key]||x.key}));
+    state.days[k]=next; put("days/"+k,next);
+  });
+}
 function applyMigrations(){
   const h=state.habits||{}, text=h.text!==undefined?h.text:(h.items||[]).join("\n");
   const applied=h.migrated||[], todo=MIGRATIONS.filter(m=>!applied.includes(m[0]));
   if(!text.trim()||!todo.length) return false;
+  let t=text;
+  todo.forEach(m=>{ const n=m[1](t); if(n!==t&&m[2]) renameKeys(m[2]); t=n });
   const next=Object.assign({},h,{
-    text:todo.reduce((t,m)=>m[1](t),text),
+    text:t,
     migrated:applied.concat(todo.map(m=>m[0])),
   });
   delete next.items;
