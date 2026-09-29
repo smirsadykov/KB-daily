@@ -187,11 +187,6 @@ select.status{width:90px;flex:none}
   .pips .segs{display:none}               /* the count says it; the bars don't fit one row */
   .plabel{letter-spacing:.05em}
 
-  /* a task keeps its text and delete on one line; the project tag sits under it,
-     hugging its own text rather than stretching the width of the card */
-  #tasks li.row label{min-width:calc(100% - 46px)}   /* a task's text + delete fill the line... */
-  li.row .x{order:2}
-  li.row select.chip{order:3;flex:0 0 auto;max-width:100%;margin:3px 0 1px 27px;align-self:flex-start}
   /* only the task form needs a second row; a name-plus-Add form stays on one */
   #taskform input[type=text]{flex:1 0 100%}
   #taskproj{flex:1 1 auto;max-width:none;margin-left:0}
@@ -256,6 +251,41 @@ header{padding-top:0}
 .kbstatus .t{font-weight:600}
 .kbstatus .d{font-size:13px;color:var(--ink-3)}
 .kbstatus .go{margin-left:auto;color:var(--ink-3);font-size:18px}
+/* habits are tiles, not a to-do list: a done one fills with colour and stays,
+   and seven dots underneath show the week rather than just today */
+ul.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:8px}
+ul.tiles>li.sect,ul.tiles>.empty,.tile.group{grid-column:1/-1}
+ul.tiles>li.sect{padding:10px 2px 0;border:0}
+ul.tiles>li.sect:first-child{padding-top:0}
+ul.tiles .txt{text-decoration:none;color:inherit}
+.tile{position:relative;border:1px solid var(--line);border-radius:12px;background:var(--bg)}
+.tile>label{display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:10px 12px;cursor:pointer;height:100%;box-sizing:border-box}
+.tile input[type=checkbox]{position:absolute;opacity:0;width:1px;height:1px;margin:0;pointer-events:none}
+.tile:has(input:focus-visible),.kid:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
+.tile.done{background:var(--accent-soft);border-color:var(--accent)}
+.tile.done>label{color:var(--accent-ink)}
+.tile.off{opacity:.5}
+.tile.slipped{border-color:var(--crit)}
+.tile .sched{align-self:flex-start}
+.tile.group>label{flex-direction:row;align-items:baseline;padding-bottom:6px;height:auto}
+.tile.group .count{margin-left:auto}
+.tile.group>label .sched{align-self:baseline}
+.chips{display:flex;flex-wrap:wrap;gap:6px;padding:0 12px 2px}
+.kid{position:relative;border-radius:100px}
+.kid>label{display:flex;gap:6px;align-items:baseline;border:1px solid var(--line);border-radius:100px;padding:4px 11px;cursor:pointer;font-size:14px;background:var(--bg)}
+.kid.done>label{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.kid.done .sched{color:inherit;opacity:.85}
+.kid.off>label{opacity:.5}
+.kid.slipped>label{border-color:var(--crit)}
+.tile.group>.dots{padding:6px 12px 10px}
+.dots{display:flex;gap:4px}
+.dots i{width:7px;height:7px;border-radius:100px;background:color-mix(in srgb,var(--ink-3) 45%,transparent)}
+.dots i.d{background:var(--accent)}
+.dots i.o{background:none;box-shadow:inset 0 0 0 1px var(--line)}
+.dots i.t{background:none;box-shadow:inset 0 0 0 1.5px var(--ink-3)}
+/* next steps: grouped under the project they move */
+#tasks li.sect:first-child{padding-top:0}
+li.nostep .link{color:var(--warn);text-align:left}
 </style>
 </head>
 <body>
@@ -284,23 +314,23 @@ header{padding-top:0}
   </div>
   <div id="offline"></div>
   <main>
+    <section id="trainsec">
+      <div class="shead"><h2>Здоровье</h2><div class="meta" id="wmeta"></div></div>
+      <button type="button" class="kbstatus" id="kbstatus"></button>
+      <ul class="tiles" id="health"></ul>
+    </section>
+
     <section>
       <div class="shead"><h2>Привычки</h2><div class="meta" id="hmeta"></div></div>
-      <ul id="habits"></ul>
+      <ul class="tiles" id="habits"></ul>
       <button class="link" id="skip" hidden></button>
     </section>
 
-    <section id="trainsec">
-      <div class="shead"><h2>Тренировка</h2><div class="meta" id="wmeta"></div></div>
-      <button type="button" class="kbstatus" id="kbstatus"></button>
-      <ul><li class="row" id="bjjrow"><label><input type="checkbox" id="bjj"><span class="txt">БЖЖ</span></label></li></ul>
-    </section>
-
     <section>
-      <div class="shead"><h2>Задачи</h2><div class="meta" id="tmeta"></div></div>
+      <div class="shead"><h2>Следующие шаги</h2><div class="meta" id="tmeta"></div></div>
       <ul id="tasks"></ul>
       <form class="add" id="taskform">
-        <input type="text" id="tasktext" placeholder="Новая задача" autocomplete="off">
+        <input type="text" id="tasktext" placeholder="Следующий шаг" autocomplete="off">
         <select id="taskproj" class="chip" aria-label="Проект"></select>
         <button class="btn" type="submit" id="addtask">Добавить</button>
       </form>
@@ -338,7 +368,7 @@ header{padding-top:0}
       <h3>Привычки</h3>
       <p class="hint">По одной на строку. Два пробела в начале — подпункт; родитель отмечается сам, когда отмечены все подпункты.
         Строка с <code>#</code> — заголовок: <code># Вечер @18</code> держит всё под ним свёрнутым до 18:00, чтобы вечернее
-        не отмечалось наугад с утра.
+        не отмечалось наугад с утра. Всё под <code># Здоровье</code> показывается в блоке «Здоровье».
         В конце строки: <code>@пн,ср,пт</code> или <code>@mon,wed,fri</code> — по этим дням, <code>@3x</code> — три раза в неделю,
         <code>@30/30</code> — курс: 30 дней приём, 30 перерыв, от первого дня, когда отметил, <code>@30d</code> — 30 дней подряд
         без срыва, при срыве счёт начинается заново. Без хвоста привычка — каждый день.
@@ -478,10 +508,25 @@ function addSections(text){
    previous migration wrote are changed. */
 const ruHeadings=text=>(text||"").split("\n")
   .map(l=>l==="# Morning"?"# Утро":l==="# Evening @18"?"# Вечер @18":l).join("\n");
+/* Vitamins are about the body, so they moved to the Health block. The vitamins
+   line and its sub-items go under a "# Здоровье" section at the end of the list
+   (at the end, so nothing else falls under that heading). Keys never include the
+   section, so no history moves. */
+function addHealth(text){
+  if(/^#\s*здоровье/im.test(text||"")) return text;
+  const lines=(text||"").replace(/\s+$/,"").split("\n");
+  const at=lines.findIndex(l=>/^[^\s#\-•]/.test(l)&&/vitamin|витамин/i.test(l));
+  if(at<0) return text;
+  let end=at+1;
+  while(end<lines.length&&/^[\s\-•]/.test(lines[end])) end++;
+  const block=lines.splice(at,end-at);
+  return [...lines,"# Здоровье",...block].join("\n");
+}
 const MIGRATIONS=[
   ["2026-09-23-courses-and-runs",addRequestedHabits],
   ["2026-09-24-morning-evening",addSections],
   ["2026-09-26-ru-headings",ruHeadings],
+  ["2026-09-29-health",addHealth],
 ];
 function applyMigrations(){
   const h=state.habits||{}, text=h.text!==undefined?h.text:(h.items||[]).join("\n");
@@ -679,6 +724,16 @@ function tasksFor(s){
   (day(s).tasks||[]).forEach((t,i)=>out.push({src:s,i,t}));
   return out;
 }
+/* Only projects that are moving ask for a step; a paused or finished project's
+   open steps wait, unseen, until it's back in work. */
+const stepsFor=s=>tasksFor(s).filter(x=>{ const p=proj(x.t.p); return !p||p.status==="active" });
+/* "# Здоровье" is a section like any other, shown in the Health block instead */
+const isHealth=h=>/^здоровье$/i.test(h.name);
+function splitHealth(tree){
+  const health=[],rest=[]; let inH=false;
+  tree.forEach(h=>{ if(h.header) inH=isHealth(h); if(!(h.header&&inH)) (inH?health:rest).push(h) });
+  return [health,rest];
+}
 const taskRef=v=>{const j=v.lastIndexOf(":");return [v.slice(0,j),+v.slice(j+1)]};
 function patchTask(ref,fields){
   const [src,i]=taskRef(ref);
@@ -701,20 +756,23 @@ function render(){
   renderBackup();
   renderHabits();
 
-  // tasks
-  const tasks=tasksFor(s);
-  $("tmeta").textContent=tasks.length?tasks.filter(x=>x.t.done).length+" / "+tasks.length:"";
-  $("tasks").innerHTML = tasks.length
-    ? tasks.map(({src,i,t})=>{
-        const pr=proj(t.p), ref=src+":"+i;
-        return '<li class="row'+(t.done?" done":"")+'"><label><input type="checkbox" data-task="'+ref+'"'+(t.done?" checked":"")+'><span class="txt">'+esc(t.text)+"</span></label>"
-        +(src!==s?'<span class="age" title="Добавлена '+esc(src)+'">'+ago(src)+"</span>":"")
-        +'<select class="chip'+(pr?" s-"+pr.status:"")+'" data-taskproj="'+ref+'" aria-label="Проект">'
-        +'<option value=""'+(pr?"":" selected")+">Без проекта</option>"
-        +projects().map(p=>'<option value="'+esc(p.id)+'"'+(p.id===t.p?" selected":"")+">"+esc(p.name)+"</option>").join("")
-        +'</select><button class="x" data-deltask="'+ref+'" aria-label="Удалить задачу">&times;</button></li>';
-      }).join("")
-    : '<li class="empty">Открытых задач нет.</li>';
+  // next steps, under the project each one moves; a project with nothing open asks for its next
+  const steps=stepsFor(s), live=projects().filter(p=>p.status==="active"), loose=steps.filter(x=>!proj(x.t.p));
+  const step=({src,i,t})=>{
+    const ref=src+":"+i;
+    return '<li class="row'+(t.done?" done":"")+'"><label><input type="checkbox" data-task="'+ref+'"'+(t.done?" checked":"")+'><span class="txt">'+esc(t.text)+"</span></label>"
+      +(src!==s?'<span class="age" title="Добавлен '+esc(src)+'">'+ago(src)+"</span>":"")
+      +'<button class="x" data-deltask="'+ref+'" aria-label="Удалить шаг">&times;</button></li>';
+  };
+  const head=name=>'<li class="sect"><span class="sname">'+esc(name)+"</span></li>";
+  $("tmeta").textContent=steps.length?steps.filter(x=>x.t.done).length+" / "+steps.length:"";
+  $("tasks").innerHTML = live.length||loose.length
+    ? live.map(p=>{
+        const mine=steps.filter(x=>x.t.p===p.id);
+        return head(p.name)+mine.map(step).join("")
+          +(mine.some(x=>!x.t.done)?"":'<li class="row nostep"><button class="link" data-step="'+esc(p.id)+'">Нет следующего шага — добавить</button></li>');
+      }).join("")+(loose.length?head("Без проекта")+loose.map(step).join(""):"")
+    : '<li class="empty">Нет проектов в работе — добавь проект ниже.</li>';
 
   renderProjects();
 
@@ -724,22 +782,38 @@ function render(){
 }
 
 const hhmm=m=>String(Math.floor(m/60)).padStart(2,"0")+":"+String(m%60).padStart(2,"0");
-function renderList(elId,tree,done,ns,emptyHtml,isDue,noteFor,isFolded,isLocked){
-  const due=isDue||(()=>true), note=noteFor||(()=>""), folded=isFolded||(()=>false), locked=isLocked||(()=>false);
-  const leaf=it=>{
-    const off=!due(it), n=note(it), lock=locked(it);
-    return '<li class="row'+(done[it.key]?" done":"")+(off?" off":"")+(lock?" slipped":"")+'">'
-      +'<label><input type="checkbox" data-leaf="'+esc(ns+":"+it.key)+'"'+(done[it.key]?" checked":"")+(lock?" disabled":"")+'><span class="txt">'+esc(it.name)+"</span></label>"
-      +(n?'<span class="sched">'+esc(n)+"</span>":"")+"</li>";
-  };
+/* The last seven days ending at `s`, one dot each. st(day) says true for done,
+   null for not wanted that day, false for missed; today and later, if not done
+   yet, are still open. */
+function dots(s,st){
+  const today=iso(new Date()); let h="";
+  for(let i=6;i>=0;i--){ const k=shift(s,-i), v=st(k); h+='<i class="'+(v?"d":v===null?"o":k>=today?"t":"")+'"></i>' }
+  return '<span class="dots" aria-hidden="true">'+h+"</span>";
+}
+const habitDots=(items,s)=>dots(s,k=>{
+  const due=items.filter(it=>isDueOn(it,k));
+  return skipped(k)||!due.length?null:due.every(it=>habitsFor(k)[it.key]);
+});
+function renderList(elId,tree,done,ns,emptyHtml,isDue,noteFor,isFolded,isLocked,dotsFor){
+  const due=isDue||(()=>true), note=noteFor||(()=>""), folded=isFolded||(()=>false), locked=isLocked||(()=>false), dot=dotsFor||(()=>"");
+  const box=(attr,on,lock)=>'<input type="checkbox" '+attr+(on?" checked":"")+(lock?" disabled":"")+">";
+  const cls=(base,it,on)=>base+(on?" done":"")+(due(it)?"":" off")+(locked(it)?" slipped":"");
+  const sched=it=>{ const n=note(it); return n?'<span class="sched">'+esc(n)+"</span>":"" };
+  const leaf=it=>'<li class="'+cls("tile",it,done[it.key])+'"><label>'
+      +box('data-leaf="'+esc(ns+":"+it.key)+'"',done[it.key],locked(it))
+      +'<span class="txt">'+esc(it.name)+"</span>"+sched(it)+dot([it])+"</label></li>";
+  const kid=(it,quiet)=>'<li class="'+cls("kid",it,done[it.key])+'"><label>'
+      +box('data-leaf="'+esc(ns+":"+it.key)+'"',done[it.key],locked(it))
+      +'<span class="txt">'+esc(it.name)+"</span>"+(quiet?"":sched(it))+"</label></li>";
   const group=h=>{
     const kids=leavesOf([h]), open=kids.filter(due);
     const n=open.filter(k=>done[k.key]).length, all=open.length>0&&n===open.length;
-    return '<li class="row group'+(all?" done":"")+(open.length?"":" off")+'">'
-      +'<div style="display:flex;gap:10px;align-items:flex-start">'
-      +'<label><input type="checkbox" data-parent="'+esc(ns+":"+h.name)+'"'+(all?" checked":"")+'><span class="txt">'+esc(h.name)+"</span></label>"
-      +'<span class="count">'+(open.length?n+" / "+open.length:"—")+"</span></div>"
-      +'<ul class="kids">'+kids.map(leaf).join("")+"</ul></li>";
+    // one course, one note: said once on the group, not on every chip
+    const same=kids.every(k=>note(k)===note(kids[0]));
+    return '<li class="tile group'+(all?" done":"")+(open.length?"":" off")+'"><label>'
+      +box('data-parent="'+esc(ns+":"+h.name)+'"',all)
+      +'<span class="txt">'+esc(h.name)+"</span>"+(same?sched(kids[0]):"")+'<span class="count">'+(open.length?n+" / "+open.length:"—")+"</span></label>"
+      +'<ul class="chips">'+kids.map(k=>kid(k,same)).join("")+"</ul>"+dot(kids)+"</li>";
   };
   let fold=false;
   const out=[];
@@ -795,11 +869,11 @@ function renderRuns(s){
 }
 
 function renderPips(){
-  const s=state.date, d=day(s), tasks=tasksFor(s).map(x=>x.t);
+  const s=state.date, d=day(s), tasks=stepsFor(s).map(x=>x.t);
   const hL=dueLeaves(s), hd=d.habits||{}, st=trainingOn(s);
   const groups=[
     ["Привычки",hL.filter(l=>hd[l.key]).length,hL.length],
-    ["Задачи",tasks.filter(t=>t.done).length,tasks.length]
+    ["Шаги",tasks.filter(t=>t.done).length,tasks.length]
   ];
   const bjj=!!(d.workout||{}).BJJ, kbDone=!!st&&st.state==="done";
   const word=bjj?(kbDone?"гиря + БЖЖ":"БЖЖ"):(st&&TRAIN_WORD[st.state]);
@@ -821,10 +895,17 @@ function renderHabits(){
   $("skip").hidden = !leaves().length;
   // a section with an hour stays folded until then — today only; a past day is over
   const now=new Date(), mins=now.getHours()*60+now.getMinutes(), isToday=s===iso(now);
-  renderList("habits",habitTree(),done,"h",'<li class="empty">Привычек пока нет — добавь в <b>Настройке</b>.</li>',
+  const [health,rest]=splitHealth(habitTree()), args=[
     it=>isDueOn(it,s), it=>schedNote(it,s),
     h=>isToday&&h.opens!==null&&mins<h.opens&&!state.openSects[h.name],
-    it=>slipOf(it.key,s)!==null);
+    it=>slipOf(it.key,s)!==null, items=>habitDots(items,s)];
+  renderList("habits",rest,done,"h",'<li class="empty">Привычек пока нет — добавь в <b>Настройке</b>.</li>',...args);
+  // Health: BJJ, ticked by hand since it happens away from the app, then the "# Здоровье" habits
+  renderList("health",health,done,"h","",...args);
+  const bjj=!!(d.workout||{}).BJJ;
+  $("health").insertAdjacentHTML("afterbegin",'<li class="tile'+(bjj?" done":"")+'"><label>'
+    +'<input type="checkbox" data-bjj'+(bjj?" checked":"")+'><span class="txt">БЖЖ</span>'
+    +dots(s,k=>(day(k).workout||{}).BJJ?true:null)+"</label></li>");
 }
 
 /* Training lives in Гиря's own tabs; this page only asks the host what a day
@@ -841,11 +922,7 @@ function trainingOn(s){
 }
 const TRAIN_WORD={done:"сделана",active:"идёт",todo:"в плане",rest:"отдых",none:"не было"};
 function renderWorkout(){
-  const s=state.date, st=trainingOn(s), bjj=!!(day(s).workout||{}).BJJ;
-  // BJJ happens away from the app, so it's ticked by hand — under the same "BJJ"
-  // key the old Workout block used, so days ticked there still count, and the
-  // month view already marks any day with a training tick
-  $("bjj").checked=bjj; $("bjjrow").classList.toggle("done",bjj);
+  const s=state.date, st=trainingOn(s);
   const b=$("kbstatus");
   b.hidden=!st;
   $("wmeta").textContent=st?TRAIN_WORD[st.state]||"":"";
@@ -855,7 +932,6 @@ function renderWorkout(){
     +'<span><span class="t">'+esc(st.title)+'</span>'+(st.detail?'<br><span class="d">'+esc(st.detail)+'</span>':"")+'</span>'
     +'<span class="go">›</span>';
 }
-$("bjj").onchange=e=>saveDay(state.date,{workout:Object.assign({},day(state.date).workout,{BJJ:e.target.checked})});
 $("kbstatus").onclick=()=>{ const h=host(); if(h&&h.kbOpenTraining) h.kbOpenTraining() };
 
 const daysAgo=k=>Math.round((parseDate(iso(new Date()))-parseDate(k))/864e5);
@@ -878,12 +954,12 @@ function renderProjects(){
         +'<button class="x" data-delproj="'+esc(p.id)+'" aria-label="Удалить проект">&times;</button></div>').join("")
     : '<div class="empty">Добавь проект — каждая задача к нему привязана.</div>';
 
-  const sel=$("taskproj"), cur=sel.value;
-  sel.innerHTML=list.length
-    ? list.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.name)+"</option>").join("")
-    : '<option value="">Проектов пока нет</option>';
-  if(list.some(p=>p.id===cur)) sel.value=cur;
-  sel.disabled=$("addtask").disabled=!list.length;
+  const sel=$("taskproj"), cur=sel.value, live=list.filter(p=>p.status==="active");
+  sel.innerHTML=live.length
+    ? live.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.name)+"</option>").join("")
+    : '<option value="">Нет проектов в работе</option>';
+  if(live.some(p=>p.id===cur)) sel.value=cur;
+  sel.disabled=$("addtask").disabled=!live.length;
 }
 
 function renderCal(){
@@ -929,12 +1005,13 @@ document.addEventListener("change",e=>{
       .forEach(k=>next[k.key]=t.checked);
     saveDay(s,{[f]:next});
   }
+  else if(t.dataset.bjj!==undefined) saveDay(s,{workout:Object.assign({},d.workout,{BJJ:t.checked})});   // the old Workout block's key: its days still count
   else if(t.dataset.task!==undefined) patchTask(t.dataset.task,{done:t.checked,doneOn:t.checked?s:null});
-  else if(t.dataset.taskproj!==undefined) patchTask(t.dataset.taskproj,{p:t.value});
   else if(t.dataset.status!==undefined) saveProjects((state.projects.items||[]).map(p=>p.id===t.dataset.status?Object.assign({},p,{status:t.value}):p));
 });
 document.addEventListener("click",e=>{
-  const b=e.target.closest("[data-deltask],[data-delproj],[data-day],[data-sect],[data-run]"); if(!b) return;
+  const b=e.target.closest("[data-deltask],[data-delproj],[data-day],[data-sect],[data-run],[data-step]"); if(!b) return;
+  if(b.dataset.step!==undefined){ $("taskproj").value=b.dataset.step; return $("tasktext").focus() }
   if(b.dataset.sect!==undefined){ state.openSects[b.dataset.sect]=true; return renderHabits() }
   if(b.dataset.run!==undefined) return slipRun(b.dataset.run);
   const s=state.date, d=day(s);

@@ -82,3 +82,16 @@ assert.deepEqual(ru.filter(l => !l.startsWith("#")), addSections(out).split("\n"
 assert.equal(ruHeadings("# Morning routine\nRead"), "# Morning routine\nRead", "only the exact headings it wrote");
 assert.equal(ruHeadings(ruHeadings(addSections(out))), ruHeadings(addSections(out)), "a second pass changes nothing");
 console.log("ru headings: 5 checks passed");
+
+/* --- the fourth: vitamins into the Health section --- */
+const hSrc = script.match(/function addHealth\(text\)\{[\s\S]*?\n\}/);
+if (!hSrc) throw new Error("couldn't find addHealth in index.html");
+const addHealth = new Function(hSrc[0] + "\nreturn addHealth;")();
+const before = ruHeadings(addSections(out)), after = addHealth(before), hl = after.split("\n");
+const hAt = hl.indexOf("# Здоровье");
+assert.ok(hAt > hl.indexOf("# Вечер @18"), "the section goes last, so nothing else falls under it");
+assert.deepEqual(hl.slice(hAt + 1), ["Take vitamins @30/30", "  Vitamin D", "  Omega-3", "  Creatine"], "the vitamins move whole");
+assert.deepEqual([...hl].sort(), [...before.split("\n"), "# Здоровье"].sort(), "nothing lost, only the heading added");
+assert.equal(addHealth(after), after, "a second pass changes nothing");
+assert.equal(addHealth("Read\nWalk"), "Read\nWalk", "no vitamins: left alone");
+console.log("health: 5 checks passed");

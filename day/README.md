@@ -12,9 +12,9 @@ Static files, no build step, no dependencies. Installable as a PWA and works off
 | Block | What it does |
 |---|---|
 | Affirmation | A standing line across the top of every day |
-| Habits | Nested checkboxes, morning and evening sections, per-habit schedules, skippable days |
-| Tasks | Written on a day, carried until ticked; every task belongs to a project |
-| Workout | Today's items from a weekly plan |
+| Health | Гиря's status for the day, BJJ, and the habits under `# Здоровье` (vitamins) |
+| Habits | Tiles with the last seven days as dots, morning and evening sections, per-habit schedules, skippable days |
+| Next steps | One concrete step per project in work, carried until ticked; a project without one is flagged |
 | Projects | Status (Active / On hold / Done), open count, last touched |
 | Month | Habit completion and training days at a glance; click a day to open it |
 
@@ -44,7 +44,8 @@ and, on today, the habits under it stay folded into one line until then — whet
 an abstinence run held or what got achieved can only be known at the end of the
 day, so they shouldn't be tickable at breakfast. Tap the line to open it early; a
 past day is always open. Headings are never part of a habit's name, so adding or
-moving them doesn't disturb any history.
+moving them doesn't disturb any history. The section named `# Здоровье` is shown in
+the Health block instead of among the habits.
 
 A habit that isn't wanted today still shows, greyed and out of the count, with the
 reason beside it (`mon thu`, `1 left this week`, `break · 27 days left`). Weeks run
@@ -72,9 +73,14 @@ straight through it: it costs nothing and earns nothing.
 **Rewording** a habit carries its history with it, as long as you don't add or
 remove lines in the same edit. Change the wording, save, then add new habits.
 
-## Tasks
+## Next steps
 
-A task belongs to the day you wrote it on and stays on the list every day after
+Not a to-do list: each step moves a project that's in work, and they're listed
+under their project. A project in work with no open step says so, and tapping that
+picks it in the form. Steps of a paused or finished project wait, unseen, until
+it's back in work. Errands the day will remind you of anyway don't belong here.
+
+A step belongs to the day you wrote it on and stays on the list every day after
 that until you tick it — nothing is stranded on a day you skipped past. Carried
 tasks show their age (`5d`) so a stale one is obvious.
 
