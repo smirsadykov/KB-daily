@@ -306,11 +306,16 @@ li.nostep .link{color:var(--warn);text-align:left}
    After Apple Health and Streaks: each block has its own colour and a real title,
    done things fill with that colour, and depth comes from stepped surfaces
    (page → card → tile) instead of a border around everything. */
-:root{--tile:#212a36;--c-health:#30d158;--c-steps:#4ea1ff;--on-hue:#0d1117}
-@media (prefers-color-scheme:light){:root{--tile:#f0f2f5;--c-health:#1a9e45;--c-steps:#0a6fe0;--on-hue:#fff}}
+:root{--tile:#212a36;--c-health:#30d158;--c-steps:#4ea1ff;--c-pay:#ffc53d;--on-hue:#0d1117}
+@media (prefers-color-scheme:light){:root{--tile:#f0f2f5;--c-health:#1a9e45;--c-steps:#0a6fe0;--c-pay:#b26a00;--on-hue:#fff}}
 .blk-health{--hue:var(--c-health)}
 .blk-habits{--hue:var(--accent)}
 .blk-steps{--hue:var(--c-steps)}
+.blk-pay{--hue:var(--c-pay)}
+.blk-pay input[type=checkbox]{accent-color:var(--hue)}
+.pwhen{font-family:var(--f-mono);font-size:12px;color:var(--ink-2);flex:none;align-self:center;white-space:nowrap}
+.pwhen.now{color:var(--hue)}
+.pwhen.late{color:var(--crit)}
 main{gap:22px}
 section{border-color:transparent;padding:18px 16px 16px;gap:14px}
 @media (prefers-color-scheme:light){section{box-shadow:0 1px 3px rgba(16,24,40,.06)}}
@@ -413,6 +418,11 @@ form.add .btn{border-radius:12px;min-height:44px;padding:0 18px;background:var(-
   </div>
   <div id="offline"></div>
   <main>
+    <section class="blk-pay" id="paysec" hidden>
+      <div class="shead"><h2>Платежи</h2><div class="meta" id="paymeta"></div></div>
+      <ul id="pays"></ul>
+    </section>
+
     <section id="trainsec" class="blk-health">
       <div class="shead"><h2>Здоровье</h2><div class="meta" id="wmeta"></div></div>
       <button type="button" class="kbstatus" id="kbstatus"></button>
@@ -484,6 +494,19 @@ form.add .btn{border-radius:12px;min-height:44px;padding:0 18px;background:var(-
       <textarea id="fhabits" rows="12"></textarea>
     </div>
     <div>
+      <h3>Платежи</h3>
+      <p class="hint">По одному на строку: <code>Интернет 800 ₽ @15</code> — каждый месяц 15-го,
+        <code>КАСКО 38000 ₽ @12.03</code> — раз в год, 12 марта. Если в месяце нет такого числа — в последний день.
+        За неделю до срока платёж появляется наверху «Дня», там же отмечаешь «оплачено».
+        «В календарь» кладёт их в календарь телефона с напоминанием накануне и в день оплаты. Поменял список —
+        нажми ещё раз, события обновятся; удалённый платёж из календаря убери вручную.</p>
+      <textarea id="fpay" rows="5" placeholder="Интернет 800 ₽ @15"></textarea>
+      <div class="dataio" style="margin-top:8px">
+        <button type="button" class="btn quiet" id="fpayics">В календарь</button>
+        <span class="hint" id="fpay-note" style="margin:0"></span>
+      </div>
+    </div>
+    <div>
       <h3>Аффирмация</h3>
       <p class="hint">Строка вверху каждого дня. Её и читает привычка про аффирмации.</p>
       <textarea id="fcreed" rows="3"></textarea>
@@ -543,6 +566,7 @@ const state={
   workout:{days:{}},
   creed:{text:""},
   projects:{items:[]},
+  payments:{text:""},
   openSects:{}
 };
 
@@ -578,6 +602,7 @@ function loadLocal(){
   state.workout=lsGet("config/workout")||state.workout;
   state.creed=lsGet("config/creed")||state.creed;
   state.projects=lsGet("config/projects")||state.projects;
+  state.payments=lsGet("config/payments")||state.payments;
 }
 function note(msg){ $("offline").innerHTML='<div class="warnbar">'+esc(msg)+"</div>"; }
 
@@ -712,6 +737,7 @@ async function connect(){
   db.doc("config/workout").onSnapshot(s=>{if(s.exists)state.workout=s.data();render()},err);
   db.doc("config/creed").onSnapshot(s=>{if(s.exists)state.creed=s.data();render()},err);
   db.doc("config/projects").onSnapshot(s=>{if(s.exists)state.projects=s.data();render()},err);
+  db.doc("config/payments").onSnapshot(s=>{if(s.exists)state.payments=s.data();render()},err);
   db.collection("days").orderBy("date","desc").limit(400).onSnapshot(q=>{
     state.days={};
     q.docs.forEach(d=>state.days[d.id]=d.data());
@@ -905,6 +931,31 @@ function splitHealth(tree){
   tree.forEach(h=>{ if(h.header) inH=isHealth(h); if(!(h.header&&inH)) (inH?health:rest).push(h) });
   return [health,rest];
 }
+/* Payments: "Интернет 800 ₽ @15" is due on the 15th of every month, "КАСКО @12.03"
+   on 12 March every year; a day a short month doesn't have falls on its last day.
+   "Paid" is ticked on the due day's record. */
+function parsePayments(text){
+  return (text||"").split("\n").map(l=>l.trim()).filter(Boolean).map(l=>{
+    const m=l.match(/^(.*?)\s*@(\d{1,2})(?:\.(\d{1,2}))?\s*$/);
+    if(!m||!m[1]||+m[2]<1||+m[2]>31||(m[3]&&(+m[3]<1||+m[3]>12))) return null;
+    return {title:m[1],day:+m[2],month:m[3]?+m[3]:null};
+  }).filter(Boolean);
+}
+const dim=(y,m)=>new Date(y,m,0).getDate();          // days in month m, 1-based
+function payDueOn(p,k){
+  const d=parseDate(k), y=d.getFullYear(), m=d.getMonth()+1;
+  return (!p.month||p.month===m)&&d.getDate()===Math.min(p.day,dim(y,m));
+}
+/* what falls due from a week back to a week ahead, earliest first; a paid one
+   drops off once its day has passed, an unpaid one stays as overdue */
+function paymentsAround(list,s,paidOn){
+  const out=[];
+  for(let i=-7;i<=7;i++){
+    const k=shift(s,i);
+    list.forEach(p=>{ if(!payDueOn(p,k)) return; const paid=paidOn(k,p.title); if(i<0&&paid) return; out.push({p,k,days:i,paid}) });
+  }
+  return out;
+}
 const taskRef=v=>{const j=v.lastIndexOf(":");return [v.slice(0,j),+v.slice(j+1)]};
 function patchTask(ref,fields){
   const [src,i]=taskRef(ref);
@@ -946,6 +997,8 @@ function render(){
     : '<li class="empty">Нет проектов в работе — добавь проект ниже.</li>';
 
   renderProjects();
+
+  renderPayments();
 
   renderWorkout();
 
@@ -1186,6 +1239,20 @@ function renderProjects(){
   sel.disabled=$("addtask").disabled=!live.length;
 }
 
+function renderPayments(){
+  const s=state.date, list=paymentsAround(parsePayments(state.payments.text),s,(k,t)=>!!(day(k).paid||{})[t]);
+  const open=list.filter(x=>!x.paid).length;
+  $("paysec").hidden=!list.length;
+  $("paymeta").textContent=open?"к оплате: "+open:"всё оплачено";
+  $("pays").innerHTML=list.map(({p,k,days,paid})=>{
+    const when=days<0?"просрочено "+(-days)+" дн.":days===0?"сегодня":days===1?"завтра":"через "+days+" дн.";
+    return '<li class="row'+(paid?" done":"")+'"><label><input type="checkbox" data-paid="'+k+"|"+esc(p.title)+'"'+(paid?" checked":"")+">"
+      +'<span class="txt">'+esc(p.title)+"</span></label>"
+      +'<span class="pwhen'+(paid?"":days<0?" late":days===0?" now":"")+'">'+when+" · "
+      +parseDate(k).toLocaleDateString("ru-RU",{day:"numeric",month:"short"})+"</span></li>";
+  }).join("");
+}
+
 function renderCal(){
   const m=state.calMonth, y=m.getFullYear(), mo=m.getMonth(), today=iso(new Date());
   $("calhead").textContent=m.toLocaleDateString("ru-RU",{month:"long",year:"numeric"});
@@ -1228,6 +1295,10 @@ document.addEventListener("change",e=>{
       .filter(k=>ns!=="h"||(isDueOn(k,s)&&slipOf(k.key,s)===null))
       .forEach(k=>next[k.key]=t.checked);
     saveDay(s,{[f]:next});
+  }
+  else if(t.dataset.paid!==undefined){
+    const k=t.dataset.paid.slice(0,10), title=t.dataset.paid.slice(11);
+    saveDay(k,{paid:Object.assign({},day(k).paid,{[title]:t.checked})});   // on the day it was due
   }
   else if(t.dataset.bjjnote!==undefined) saveDay(s,{bjj:Object.assign({},d.bjj,{note:t.value.trim()})});
   else if(t.dataset.bjj!==undefined) saveDay(s,{workout:Object.assign({},d.workout,{BJJ:t.checked})});   // the old Workout block's key: its days still count
@@ -1308,6 +1379,7 @@ $("skip").onclick=()=>saveDay(state.date,{skip:!skipped(state.date)});
 $("settings").onclick=()=>{
   $("fhabits").value=state.habits.text!==undefined?state.habits.text:(state.habits.items||[]).join("\n");
   $("fcreed").value=state.creed.text||"";
+  $("fpay").value=state.payments.text||""; $("fpay-note").textContent="";
   const sc=syncCfg();
   $("srepo").value=sc.repo||""; $("sbranch").value=sc.branch||""; $("stoken").value=sc.token||"";
   $("dlg").showModal();
@@ -1338,6 +1410,7 @@ $("setupform").onsubmit=e=>{
   delete state.habits.items;
   renameHistory(before,leaves().map(l=>l.key));
   state.creed={text:$("fcreed").value.trim()};
+  state.payments={text:$("fpay").value.trim()}; put("config/payments",state.payments);
   put("config/habits",state.habits); put("config/creed",state.creed);
   lsSet("sync",{repo:$("srepo").value.trim().replace(/^https?:\/\/github\.com\//,"").replace(/\.git$/,""),
                 branch:$("sbranch").value.trim()||"main",
@@ -1555,6 +1628,39 @@ $("fics").onclick=()=>{
   $("fics-note").textContent="Открой файл, чтобы добавить — каждый день в "+t+".";
 };
 
+/* Payments as all-day events repeating on their day, with an alert at 09:00 the
+   day before and 09:00 on the day. The UID comes from the payment's wording, so
+   exporting again updates an event instead of adding a second one. */
+function buildPaymentsIcs(list,now,url){
+  const today=iso(now), stamp=now.toISOString().replace(/[-:]/g,"").replace(/\.\d{3}/,"");
+  let host="daydesk"; try{ host=new URL(url).host||host }catch(e){}
+  const uid=t=>{ let h=0; for(const c of t) h=(h*31+c.codePointAt(0))>>>0; return "daydesk-pay-"+h.toString(16)+"@"+host };
+  const out=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Day Desk//EN","CALSCALE:GREGORIAN","METHOD:PUBLISH"];
+  list.forEach(p=>{
+    let k=today; while(!payDueOn(p,k)) k=shift(k,1);            // the first one from today on
+    // the 29th–31st: the last of those the month has, same as the app
+    const by=p.day<=28?"BYMONTHDAY="+p.day:"BYMONTHDAY="+Array.from({length:p.day-27},(_,i)=>28+i).join(",")+";BYSETPOS=-1";
+    out.push("BEGIN:VEVENT","UID:"+uid(p.title),"DTSTAMP:"+stamp,"DTSTART;VALUE=DATE:"+k.replace(/-/g,""),
+      "RRULE:FREQ="+(p.month?"YEARLY;BYMONTH="+p.month:"MONTHLY")+";"+by,
+      "SUMMARY:"+icsEscape("Оплатить: "+p.title),"DESCRIPTION:"+icsEscape(url),"TRANSP:TRANSPARENT",
+      "BEGIN:VALARM","ACTION:DISPLAY","DESCRIPTION:"+icsEscape("Завтра оплатить: "+p.title),"TRIGGER:-PT15H","END:VALARM",
+      "BEGIN:VALARM","ACTION:DISPLAY","DESCRIPTION:"+icsEscape("Сегодня оплатить: "+p.title),"TRIGGER:PT9H","END:VALARM",
+      "END:VEVENT");
+  });
+  out.push("END:VCALENDAR");
+  return out.map(icsFold).join("\r\n")+"\r\n";
+}
+$("fpayics").onclick=()=>{
+  const list=parsePayments($("fpay").value);
+  if(!list.length) return void($("fpay-note").textContent="Нет ни одного платежа с датой — например: Интернет 800 ₽ @15");
+  const url=location.origin+location.pathname.replace(/[^/]*$/,"");
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([buildPaymentsIcs(list,new Date(),url)],{type:"text/calendar"}));
+  a.download="platezhi.ics";
+  a.click(); URL.revokeObjectURL(a.href);
+  $("fpay-note").textContent="Открой файл, чтобы добавить: платежей — "+list.length+".";
+};
+
 /* ---------- backup ---------- */
 /* Everything lives in this browser. Ask it to keep the data even under storage
    pressure, and keep track of when it was last exported, so losing the phone
@@ -1592,7 +1698,7 @@ function renderBackup(){
 }
 function snapshot(){
   return {v:1, exported:new Date().toISOString(),
-    config:{habits:state.habits,workout:state.workout,creed:state.creed,projects:state.projects},
+    config:{habits:state.habits,workout:state.workout,creed:state.creed,projects:state.projects,payments:state.payments},
     days:state.days};
 }
 $("nudge").onclick=()=>{ $("settings").click(); $("fexport").scrollIntoView({block:"center"}) };
@@ -1613,9 +1719,9 @@ $("ffile").onchange=async e=>{
     if(!d||!d.config||!d.days) throw new Error("это не выгрузка «Дня»");
     const c=d.config;
     state.habits=c.habits||state.habits; state.workout=c.workout||state.workout;
-    state.creed=c.creed||state.creed; state.projects=c.projects||state.projects;
+    state.creed=c.creed||state.creed; state.projects=c.projects||state.projects; state.payments=c.payments||state.payments;
     put("config/habits",state.habits); put("config/workout",state.workout);
-    put("config/creed",state.creed); put("config/projects",state.projects);
+    put("config/creed",state.creed); put("config/projects",state.projects); put("config/payments",state.payments);
     Object.keys(d.days).forEach(k=>{ state.days[k]=d.days[k]; put("days/"+k,d.days[k]) });
     render();
     $("fio").textContent="Загружено дней: "+Object.keys(d.days).length+".";

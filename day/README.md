@@ -12,6 +12,7 @@ Static files, no build step, no dependencies. Installable as a PWA and works off
 | Block | What it does |
 |---|---|
 | Affirmation | A standing line across the top of every day |
+| Payments | Monthly (`Интернет 800 ₽ @15`) or yearly (`КАСКО @12.03`) payments: shown a week before they're due, ticked when paid, and exported to the phone calendar with alerts the evening before and on the day |
 | Health | Гиря's status for the day, BJJ (positions worked and a line on what you drilled; before class, what last time was about), and the habits under `# Здоровье` (vitamins) |
 | Habits | Tiles with the last seven days as dots, morning and evening sections, per-habit schedules, skippable days |
 | Next steps | One concrete step per project in work, carried until ticked; a project without one is flagged |

@@ -58,3 +58,36 @@ assert.equal(folded.map((l, i) => (i ? l.slice(1) : l)).join(""), long, "unfoldi
 assert.ok(lines.every(l => enc.encode(l).length <= 75), "the whole file respects the limit");
 
 console.log("ics: 21 checks passed");
+
+/* --- payments: parsing, due days, the calendar file --- */
+{
+  const P = new Function([
+    grab(/const iso=[^\n]+/, "iso"), grab(/const parseDate=[^\n]+/, "parseDate"), grab(/const shift=[^\n]+/, "shift"),
+    grab(/const icsEscape=[^\n]+/, "icsEscape"), grab(/function icsFold\(line\)\{[\s\S]*?\n\}/, "icsFold"),
+    grab(/function parsePayments\(text\)\{[\s\S]*?\n\}/, "parsePayments"), grab(/const dim=[^\n]+/, "dim"),
+    grab(/function payDueOn\(p,k\)\{[\s\S]*?\n\}/, "payDueOn"), grab(/function paymentsAround\(list,s,paidOn\)\{[\s\S]*?\n\}/, "paymentsAround"),
+    grab(/function buildPaymentsIcs\(list,now,url\)\{[\s\S]*?\n\}/, "buildPaymentsIcs"),
+  ].join("\n") + "\nreturn {parsePayments,payDueOn,paymentsAround,buildPaymentsIcs};")();
+  const list = P.parsePayments("Интернет 800 ₽ @15\nКАСКО 38000 ₽ @12.03\nАренда @31\nбез даты\nплохо @32");
+  assert.deepEqual(list.map(p => [p.title, p.day, p.month]), [["Интернет 800 ₽", 15, null], ["КАСКО 38000 ₽", 12, 3], ["Аренда", 31, null]],
+    "monthly, yearly, and lines without a valid date dropped");
+  assert.ok(P.payDueOn(list[2], "2026-02-28") && P.payDueOn(list[2], "2026-04-30") && !P.payDueOn(list[2], "2026-04-29"),
+    "the 31st falls on the last day of a shorter month");
+  assert.ok(P.payDueOn(list[1], "2027-03-12") && !P.payDueOn(list[1], "2027-04-12"), "yearly only in its month");
+  const paid = new Set(["2026-09-15|Интернет 800 ₽"]);
+  const around = (s) => P.paymentsAround(list, s, (k, t) => paid.has(k + "|" + t)).map(x => x.p.title + " " + x.days + (x.paid ? " paid" : ""));
+  assert.deepEqual(around("2026-09-10"), ["Интернет 800 ₽ 5 paid"], "a week ahead, paid shown until its day");
+  assert.deepEqual(around("2026-09-20"), [], "paid and past: gone");
+  assert.deepEqual(around("2026-10-02"), ["Аренда -2"], "unpaid and past: overdue for a week");
+  const ics = P.buildPaymentsIcs(list, new Date(2026, 8, 20, 10), "https://x.example/app/");
+  const ev = ics.split("BEGIN:VEVENT").slice(1);
+  assert.equal(ev.length, 3, "one event per payment");
+  assert.ok(ev[0].includes("DTSTART;VALUE=DATE:20261015") && ev[0].includes("RRULE:FREQ=MONTHLY;BYMONTHDAY=15"), "monthly, next one after today");
+  assert.ok(ev[1].includes("DTSTART;VALUE=DATE:20270312") && ev[1].includes("RRULE:FREQ=YEARLY;BYMONTH=3;BYMONTHDAY=12"), "yearly");
+  assert.ok(ev[2].includes("DTSTART;VALUE=DATE:20260930") && ev[2].includes("BYMONTHDAY=28,29,30,31;BYSETPOS=-1"), "the 31st: last day of the month");
+  assert.ok(ev[0].includes("TRIGGER:-PT15H") && ev[0].includes("TRIGGER:PT9H"), "alerts the evening before and on the day");
+  assert.equal(P.buildPaymentsIcs(list, new Date(2026, 8, 21), "https://x.example/app/").match(/UID:[^\r]+/g).join(),
+    ics.match(/UID:[^\r]+/g).join(), "the same payment keeps its UID, so exporting again updates it");
+  assert.ok(!/[^\r]\n/.test(ics) && ics.endsWith("\r\n"), "CRLF throughout");
+  console.log("payments: 12 checks passed");
+}
