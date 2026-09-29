@@ -534,14 +534,13 @@ function addHealth(text){
   const block=lines.splice(at,end-at);
   return [...lines,"# Здоровье",...block].join("\n");
 }
-/* The owner worked out what giving up the hookah is for: 2 000 ₽ a day towards a
-   Tank 300, which is the freedom to drive wherever they want. Written once under
-   that line; a line that already has a reason or a bank is left alone. */
-function addHookahWhy(text){
-  const lines=(text||"").split("\n"), at=lines.findIndex(l=>/^\s*без кальяна\s*(@\S+)?\s*$/i.test(l));
+/* What the owner worked out an abstinence is for, written once under its line;
+   a line that already has a reason or a bank is left alone. */
+function addNote(text,re,extra){
+  const lines=(text||"").split("\n"), at=lines.findIndex(l=>re.test(l));
   if(at<0||/^\s*(ради|копилка)\s*:/i.test(lines[at+1]||"")) return text;
   const pad=lines[at].match(/^\s*/)[0]+"  ";
-  lines.splice(at+1,0,pad+"ради: Свобода ездить куда хочу",pad+"копилка: +2000 ₽ до 4200000");
+  lines.splice(at+1,0,...extra.map(x=>pad+x));
   return lines.join("\n");
 }
 const MIGRATIONS=[
@@ -549,7 +548,9 @@ const MIGRATIONS=[
   ["2026-09-24-morning-evening",addSections],
   ["2026-09-26-ru-headings",ruHeadings],
   ["2026-09-29-health",addHealth],
-  ["2026-09-29-hookah-why",addHookahWhy],
+  // 2 000 ₽ a day towards a Tank 300: the freedom to drive wherever they want
+  ["2026-09-29-hookah-why",t=>addNote(t,/^\s*без кальяна\s*(@\S+)?\s*$/i,["ради: Свобода ездить куда хочу","копилка: +2000 ₽ до 4200000"])],
+  ["2026-09-29-porn-why",t=>addNote(t,/^\s*без порно\s*(@\S+)?\s*$/i,["ради: Энергия — в живой мир"])],
 ];
 function applyMigrations(){
   const h=state.habits||{}, text=h.text!==undefined?h.text:(h.items||[]).join("\n");
