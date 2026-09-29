@@ -301,6 +301,68 @@ button.dep::before{content:"✓ ";color:var(--accent)}
 /* next steps: grouped under the project they move */
 #tasks li.sect:first-child{padding-top:0}
 li.nostep .link{color:var(--warn);text-align:left}
+
+/* ---- look ----
+   After Apple Health and Streaks: each block has its own colour and a real title,
+   done things fill with that colour, and depth comes from stepped surfaces
+   (page → card → tile) instead of a border around everything. */
+:root{--tile:#212a36;--c-health:#30d158;--c-steps:#4ea1ff;--on-hue:#0d1117}
+@media (prefers-color-scheme:light){:root{--tile:#f0f2f5;--c-health:#1a9e45;--c-steps:#0a6fe0;--on-hue:#fff}}
+.blk-health{--hue:var(--c-health)}
+.blk-habits{--hue:var(--accent)}
+.blk-steps{--hue:var(--c-steps)}
+main{gap:22px}
+section{border-color:transparent;padding:18px 16px 16px;gap:14px}
+@media (prefers-color-scheme:light){section{box-shadow:0 1px 3px rgba(16,24,40,.06)}}
+section[class*="blk-"] .shead h2{font-size:21px;font-weight:700;letter-spacing:-.015em;text-transform:none;display:flex;align-items:center;gap:9px}
+section[class*="blk-"] .shead h2::before{content:"";width:11px;height:11px;border-radius:4px;background:var(--hue)}
+section[class*="blk-"] .shead .meta{color:var(--hue)}
+.quiet .shead h2{font-size:15px;text-transform:none;letter-spacing:0}
+
+/* tiles: a step up from the card, no outline; done = the block's colour */
+.tile{border:0;background:var(--tile);border-radius:14px}
+.tile.done{background:var(--hue);color:var(--on-hue)}
+.tile.done>label{color:inherit}
+.tile.done .sched,.tile.done .why,.tile.done .bank,.tile.done button.dep,.tile.done .more .link{color:inherit;opacity:.85}
+.tile.done .bank b{color:inherit}
+.tile.done .dots i{background:rgba(0,0,0,.22);box-shadow:none}
+.tile.done .dots i.d{background:var(--on-hue)}
+.tile.done .bar{background:rgba(0,0,0,.2)}
+.tile.done .bar i{background:var(--on-hue)}
+.tile.slipped{box-shadow:inset 0 0 0 1.5px var(--crit)}
+.dots i.d{background:var(--hue)}
+.bar i{background:var(--hue)}
+.bank b{color:var(--hue)}
+.more .link{color:var(--hue)}
+/* a group isn't filled — its chips are — or the two would blur into one */
+.tile.group.done{background:var(--tile);color:var(--ink)}
+.tile.group.done>label .txt,.tile.group.done .count{color:var(--hue);opacity:1}
+.tile.group.done>.dots i{background:color-mix(in srgb,var(--ink-3) 45%,transparent)}
+.tile.group.done>.dots i.d{background:var(--hue)}
+.kid>label{border:0;background:var(--surface)}
+.kid.done>label{background:var(--hue);color:var(--on-hue)}
+.kid.slipped>label{box-shadow:inset 0 0 0 1.5px var(--crit)}
+ul.tiles>li.sect .sname{color:var(--ink-2)}
+
+/* Гиря's line in Health: a row of its own, the same step up as a tile */
+.kbstatus{background:var(--tile);border-radius:14px;padding:12px 14px}
+.kbstatus.done .mark{background:var(--hue);border-color:var(--hue);color:var(--on-hue)}
+.kbstatus.active .mark{border-color:var(--hue);color:var(--hue)}
+
+/* steps: rows on the card, the checkbox in the block's colour */
+.blk-steps input[type=checkbox]{accent-color:var(--hue)}
+#tasks li.sect .sname{color:var(--hue)}
+
+/* adding is a button until it's needed; the field is recessed below the card */
+details.adder>summary{list-style:none;cursor:pointer;font-weight:600;color:var(--hue,var(--ink-2));padding:4px 2px;width:max-content}
+details.adder>summary::-webkit-details-marker{display:none}
+details.adder[open]>summary{margin-bottom:10px}
+form.add input[type=text],form.add select.chip{background:var(--bg);border:1px solid var(--line);border-radius:12px;min-height:44px}
+form.add input[type=text]{padding:10px 12px}
+form.add input[type=text]:focus{outline:none;border-color:var(--hue,var(--accent))}
+form.add select.chip{padding:0 12px;font-size:12px}
+form.add .btn{border-radius:12px;min-height:44px;padding:0 18px;background:var(--hue,var(--accent));color:var(--on-hue)}
+.quiet form.add .btn{color:var(--on-accent)}
 </style>
 </head>
 <body>
@@ -329,35 +391,39 @@ li.nostep .link{color:var(--warn);text-align:left}
   </div>
   <div id="offline"></div>
   <main>
-    <section id="trainsec">
+    <section id="trainsec" class="blk-health">
       <div class="shead"><h2>Здоровье</h2><div class="meta" id="wmeta"></div></div>
       <button type="button" class="kbstatus" id="kbstatus"></button>
       <ul class="tiles" id="health"></ul>
     </section>
 
-    <section>
+    <section class="blk-habits">
       <div class="shead"><h2>Привычки</h2><div class="meta" id="hmeta"></div></div>
       <ul class="tiles" id="habits"></ul>
       <button class="link" id="skip" hidden></button>
     </section>
 
-    <section>
+    <section class="blk-steps">
       <div class="shead"><h2>Следующие шаги</h2><div class="meta" id="tmeta"></div></div>
       <ul id="tasks"></ul>
-      <form class="add" id="taskform">
-        <input type="text" id="tasktext" placeholder="Следующий шаг" autocomplete="off">
-        <select id="taskproj" class="chip" aria-label="Проект"></select>
-        <button class="btn" type="submit" id="addtask">Добавить</button>
-      </form>
+      <details class="adder" id="stepadder"><summary>+ Шаг</summary>
+        <form class="add" id="taskform">
+          <input type="text" id="tasktext" placeholder="Что конкретно сделать" autocomplete="off">
+          <select id="taskproj" class="chip" aria-label="Проект"></select>
+          <button class="btn" type="submit" id="addtask">Добавить</button>
+        </form>
+      </details>
     </section>
 
     <section class="quiet">
       <div class="shead"><h2>Проекты</h2><div class="meta" id="pmeta"></div></div>
       <div id="projects"></div>
-      <form class="add" id="projform">
-        <input type="text" id="projname" placeholder="Новый проект" autocomplete="off">
-        <button class="btn" type="submit">Добавить</button>
-      </form>
+      <details class="adder"><summary>+ Проект</summary>
+        <form class="add" id="projform">
+          <input type="text" id="projname" placeholder="Название проекта" autocomplete="off">
+          <button class="btn" type="submit">Добавить</button>
+        </form>
+      </details>
     </section>
 
     <section class="bare">
@@ -1138,7 +1204,7 @@ document.addEventListener("click",e=>{
     if(x&&confirm("Убрать из копилки: «"+x.what+"» — "+nf(x.sum)+"?")) saveDay(src,{deposits:day(src).deposits.filter((_,j)=>j!==i)});
     return;
   }
-  if(b.dataset.step!==undefined){ $("taskproj").value=b.dataset.step; return $("tasktext").focus() }
+  if(b.dataset.step!==undefined){ $("stepadder").open=true; $("taskproj").value=b.dataset.step; return $("tasktext").focus() }
   if(b.dataset.sect!==undefined){ state.openSects[b.dataset.sect]=true; return renderHabits() }
   if(b.dataset.run!==undefined) return slipRun(b.dataset.run);
   const s=state.date, d=day(s);
