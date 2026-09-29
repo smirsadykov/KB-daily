@@ -315,12 +315,15 @@ main{gap:22px}
 section{border-color:transparent;padding:18px 16px 16px;gap:14px}
 @media (prefers-color-scheme:light){section{box-shadow:0 1px 3px rgba(16,24,40,.06)}}
 section[class*="blk-"] .shead h2{font-size:21px;font-weight:700;letter-spacing:-.015em;text-transform:none;display:flex;align-items:center;gap:9px}
-section[class*="blk-"] .shead h2::before{content:"";width:11px;height:11px;border-radius:4px;background:var(--hue)}
+section[class*="blk-"] .shead h2::before{content:"";width:12px;height:12px;border-radius:4px;background:var(--hue)}
+section[class*="blk-"]{box-shadow:inset 0 3px 0 var(--hue)}
 section[class*="blk-"] .shead .meta{color:var(--hue)}
 .quiet .shead h2{font-size:15px;text-transform:none;letter-spacing:0}
 
 /* tiles: a step up from the card, no outline; done = the block's colour */
-.tile{border:0;background:var(--tile);border-radius:14px}
+/* not done yet still wears its block's colour, faintly, so a fresh morning isn't grey */
+.tile,.kbstatus{border:0;background:color-mix(in srgb,var(--hue,var(--ink-3)) 13%,var(--tile));border-radius:14px}
+.tile:not(.done) .dots i:not(.d):not(.o):not(.t){background:color-mix(in srgb,var(--hue) 35%,transparent)}
 .tile.done{background:var(--hue);color:var(--on-hue)}
 .tile.done>label{color:inherit}
 .tile.done .sched,.tile.done .why,.tile.done .bank,.tile.done button.dep,.tile.done .more .link{color:inherit;opacity:.85}
@@ -335,17 +338,17 @@ section[class*="blk-"] .shead .meta{color:var(--hue)}
 .bank b{color:var(--hue)}
 .more .link{color:var(--hue)}
 /* a group isn't filled — its chips are — or the two would blur into one */
-.tile.group.done{background:var(--tile);color:var(--ink)}
+.tile.group.done{background:color-mix(in srgb,var(--hue) 13%,var(--tile));color:var(--ink)}
 .tile.group.done>label .txt,.tile.group.done .count{color:var(--hue);opacity:1}
 .tile.group.done>.dots i{background:color-mix(in srgb,var(--ink-3) 45%,transparent)}
 .tile.group.done>.dots i.d{background:var(--hue)}
-.kid>label{border:0;background:var(--surface)}
+.kid>label{border:0;background:color-mix(in srgb,var(--hue) 8%,var(--surface))}
 .kid.done>label{background:var(--hue);color:var(--on-hue)}
 .kid.slipped>label{box-shadow:inset 0 0 0 1.5px var(--crit)}
 ul.tiles>li.sect .sname{color:var(--ink-2)}
 
 /* Гиря's line in Health: a row of its own, the same step up as a tile */
-.kbstatus{background:var(--tile);border-radius:14px;padding:12px 14px}
+.kbstatus{padding:12px 14px}
 .kbstatus.done .mark{background:var(--hue);border-color:var(--hue);color:var(--on-hue)}
 .kbstatus.active .mark{border-color:var(--hue);color:var(--hue)}
 
