@@ -39,6 +39,16 @@ Gym @mon,wed                a schedule on a parent is inherited by its sub-items
   Bench @tue                unless the sub-item sets its own
 ```
 
+Two kinds of line under a habit describe it rather than being habits themselves:
+
+```
+  Без кальяна
+    ради: Свобода ездить куда хочу        what it's for — on the tile, and asked again at a slip
+    копилка: +2000 ₽ до 4200000           each day done puts this aside; any unit, target optional
+```
+
+Neither is part of the habit's name, so both can be reworded any time.
+
 A line starting with `#` is a **section heading**. Give it an hour (`# Evening @18`)
 and, on today, the habits under it stay folded into one line until then — whether
 an abstinence run held or what got achieved can only be known at the end of the

@@ -95,3 +95,13 @@ assert.deepEqual([...hl].sort(), [...before.split("\n"), "# Здоровье"].s
 assert.equal(addHealth(after), after, "a second pass changes nothing");
 assert.equal(addHealth("Read\nWalk"), "Read\nWalk", "no vitamins: left alone");
 console.log("health: 5 checks passed");
+
+/* --- the fifth: the reason and bank for the hookah --- */
+const kSrc = script.match(/function addHookahWhy\(text\)\{[\s\S]*?\n\}/);
+if (!kSrc) throw new Error("couldn't find addHookahWhy in index.html");
+const addHookahWhy = new Function(kSrc[0] + "\nreturn addHookahWhy;")();
+const k1 = addHookahWhy(after), kl = k1.split("\n"), ki = kl.indexOf("  Без кальяна");
+assert.deepEqual(kl.slice(ki + 1, ki + 3), ["    ради: Свобода ездить куда хочу", "    копилка: +2000 ₽ до 4200000"], "written right under it, one level deeper");
+assert.equal(addHookahWhy(k1), k1, "a second pass changes nothing");
+assert.equal(addHookahWhy("Без кальяна\n  ради: своё"), "Без кальяна\n  ради: своё", "a reason already written wins");
+console.log("hookah why: 3 checks passed");

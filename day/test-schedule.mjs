@@ -201,3 +201,18 @@ console.log("sections: 7 checks passed");
   assert.deepEqual(runHistory(null, T, none, none, none, b(30)), { best: 0, slips: 0 }, "never started");
   console.log("run history: 8 checks passed");
 }
+
+// --- "ради:" and "копилка:" belong to the line above and never touch its key ---
+{
+  const t = leavesOf(parseTree("Аскеза @30d\n  ради: ясная голова\n  Без кальяна\n    ради: Свобода ездить куда хочу\n    копилка: +2000 ₽ до 4 200 000\n  Без порно\nЧтение\n  копилка: +10 стр.", true));
+  const tree = parseTree("Аскеза @30d\n  ради: ясная голова\n  Без кальяна", true);
+  assert.equal(tree[0].why, "ясная голова", "a reason right under a group is the group's");
+  assert.deepEqual(t.map(l => l.key), ["Аскеза/Без кальяна", "Аскеза/Без порно", "Чтение"], "attribute lines are not habits");
+  assert.equal(t[0].why, "Свобода ездить куда хочу");
+  assert.deepEqual(t[0].bank, { per: 2000, unit: "₽", goal: 4200000 });
+  assert.equal(t[1].why, undefined, "the next item doesn't inherit it");
+  assert.deepEqual(t[2].bank, { per: 10, unit: "стр.", goal: null }, "any unit, target optional");
+  assert.deepEqual(parseTree("X\n  копилка: +30 мин / 600", true)[0].bank, { per: 30, unit: "мин", goal: 600 });
+  assert.equal(parseTree("ради: nothing above", true).length, 0, "an orphan attribute is dropped");
+  console.log("why and bank: 8 checks passed");
+}

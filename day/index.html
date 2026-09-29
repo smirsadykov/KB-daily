@@ -283,6 +283,15 @@ ul.tiles .txt{text-decoration:none;color:inherit}
 .dots i.d{background:var(--accent)}
 .dots i.o{background:none;box-shadow:inset 0 0 0 1px var(--line)}
 .dots i.t{background:none;box-shadow:inset 0 0 0 1.5px var(--ink-3)}
+/* what it's for, and its piggy bank */
+.why{font-size:12.5px;line-height:1.35;font-style:italic;color:var(--ink-2)}
+.bank{font-family:var(--f-mono);font-size:12px;color:var(--ink-2)}
+.bank b{color:var(--accent-ink);font-weight:600}
+.bar{display:block;align-self:stretch;height:4px;border-radius:4px;background:var(--surface-2);overflow:hidden}
+.bar i{display:block;height:100%;min-width:2px;background:var(--accent)}
+.kid.rich{flex-basis:100%}
+.kid .more{display:flex;flex-direction:column;gap:4px;padding:6px 4px 4px 12px}
+.tile.group>.more{display:flex;flex-direction:column;gap:4px;padding:0 12px 8px}
 /* next steps: grouped under the project they move */
 #tasks li.sect:first-child{padding-top:0}
 li.nostep .link{color:var(--warn);text-align:left}
@@ -369,6 +378,9 @@ li.nostep .link{color:var(--warn);text-align:left}
       <p class="hint">По одной на строку. Два пробела в начале — подпункт; родитель отмечается сам, когда отмечены все подпункты.
         Строка с <code>#</code> — заголовок: <code># Вечер @18</code> держит всё под ним свёрнутым до 18:00, чтобы вечернее
         не отмечалось наугад с утра. Всё под <code># Здоровье</code> показывается в блоке «Здоровье».
+        Строка <code>ради: …</code> под привычкой — зачем она тебе; видна на плитке и при срыве. Строка
+        <code>копилка: +2000 ₽ до 4200000</code> — что откладывает каждый выполненный день (единица любая: <code>+30 мин</code>,
+        <code>+1 стр.</code>; «до …» можно не писать). Обе можно менять когда угодно — история не трогается.
         В конце строки: <code>@пн,ср,пт</code> или <code>@mon,wed,fri</code> — по этим дням, <code>@3x</code> — три раза в неделю,
         <code>@30/30</code> — курс: 30 дней приём, 30 перерыв, от первого дня, когда отметил, <code>@30d</code> — 30 дней подряд
         без срыва, при срыве счёт начинается заново. Без хвоста привычка — каждый день.
@@ -522,11 +534,22 @@ function addHealth(text){
   const block=lines.splice(at,end-at);
   return [...lines,"# Здоровье",...block].join("\n");
 }
+/* The owner worked out what giving up the hookah is for: 2 000 ₽ a day towards a
+   Tank 300, which is the freedom to drive wherever they want. Written once under
+   that line; a line that already has a reason or a bank is left alone. */
+function addHookahWhy(text){
+  const lines=(text||"").split("\n"), at=lines.findIndex(l=>/^\s*без кальяна\s*(@\S+)?\s*$/i.test(l));
+  if(at<0||/^\s*(ради|копилка)\s*:/i.test(lines[at+1]||"")) return text;
+  const pad=lines[at].match(/^\s*/)[0]+"  ";
+  lines.splice(at+1,0,pad+"ради: Свобода ездить куда хочу",pad+"копилка: +2000 ₽ до 4200000");
+  return lines.join("\n");
+}
 const MIGRATIONS=[
   ["2026-09-23-courses-and-runs",addRequestedHabits],
   ["2026-09-24-morning-evening",addSections],
   ["2026-09-26-ru-headings",ruHeadings],
   ["2026-09-29-health",addHealth],
+  ["2026-09-29-hookah-why",addHookahWhy],
 ];
 function applyMigrations(){
   const h=state.habits||{}, text=h.text!==undefined?h.text:(h.items||[]).join("\n");
@@ -601,17 +624,32 @@ function parseHeader(text){
   const opens=m[2]!==undefined&&+m[2]<24?(+m[2])*60+(+(m[3]||0)):null;
   return {header:true,name:m[1],opens,key:"#"+m[1],kids:[]};
 }
+/* "ради: …" and "копилка: +2000 ₽ до 4200000" under a line belong to that line:
+   what it's for, and what each day it's done puts aside (any unit, the target
+   optional). Neither is part of the name, so both can be reworded any time
+   without touching history. */
 function parseTree(raw,scheduled){
-  const out=[];
+  const out=[]; let last=null;
   (raw||"").split("\n").forEach(line=>{
     if(!line.trim()) return;
     const child=/^[\s\-•]/.test(line), text=line.replace(/^[\s\-•]+/,"").trim();
+    const attr=scheduled&&text.match(/^(ради|копилка)\s*:\s*(.+)$/i);
+    if(attr){
+      if(!last) return;
+      if(/^р/i.test(attr[1])) last.why=attr[2];
+      else{
+        const m=attr[2].match(/^\+?\s*(\d[\d\s]*(?:[.,]\d+)?)\s*(.*?)(?:\s*(?:\/|до)\s*(\d[\d\s]*))?\s*$/i);
+        const num=v=>+v.replace(/\s/g,"").replace(",",".");
+        if(m) last.bank={per:num(m[1]),unit:m[2],goal:m[3]?num(m[3]):null};
+      }
+      return;
+    }
     const hdr=scheduled&&!child?parseHeader(text):null;
-    if(hdr) return void out.push(hdr);
+    if(hdr){ last=null; return void out.push(hdr) }
     const {name,sched}=scheduled?parseSched(text):{name:text,sched:null};
     const parent=out[out.length-1];
-    if(child && parent && !parent.header) parent.kids.push({name,sched,key:parent.name+"/"+name});
-    else out.push({name,sched,key:name,kids:[]});
+    if(child && parent && !parent.header) parent.kids.push(last={name,sched,key:parent.name+"/"+name});
+    else out.push(last={name,sched,key:name,kids:[]});
   });
   return out;
 }
@@ -794,6 +832,20 @@ const habitDots=(items,s)=>dots(s,k=>{
   const due=items.filter(it=>isDueOn(it,k));
   return skipped(k)||!due.length?null:due.every(it=>habitsFor(k)[it.key]);
 });
+/* how many days a habit (or every one of a group's items) was done, ever */
+const timesDone=items=>Object.values(state.days).filter(d=>items.every(it=>(d.habits||{})[it.key])).length;
+const nf=n=>n.toLocaleString("ru-RU",{maximumFractionDigits:1});
+/* what a habit is for, and its piggy bank: each day done adds `per` */
+function extras(it,items){
+  let h="";
+  if(it.bank){
+    const b=it.bank, got=b.per*timesDone(items), pct=b.goal?Math.min(100,got/b.goal*100):0;
+    h+='<span class="bank"><b>'+nf(got)+(b.unit?" "+esc(b.unit):"")+"</b>"+(b.goal?" из "+nf(b.goal)+" · "+nf(pct)+"%":"")+"</span>"
+      +(b.goal?'<span class="bar"><i style="width:'+pct+'%"></i></span>':"");
+  }
+  if(it.why) h+='<span class="why">'+esc(it.why)+"</span>";
+  return h;
+}
 function renderList(elId,tree,done,ns,emptyHtml,isDue,noteFor,isFolded,isLocked,dotsFor){
   const due=isDue||(()=>true), note=noteFor||(()=>""), folded=isFolded||(()=>false), locked=isLocked||(()=>false), dot=dotsFor||(()=>"");
   const box=(attr,on,lock)=>'<input type="checkbox" '+attr+(on?" checked":"")+(lock?" disabled":"")+">";
@@ -801,10 +853,14 @@ function renderList(elId,tree,done,ns,emptyHtml,isDue,noteFor,isFolded,isLocked,
   const sched=it=>{ const n=note(it); return n?'<span class="sched">'+esc(n)+"</span>":"" };
   const leaf=it=>'<li class="'+cls("tile",it,done[it.key])+'"><label>'
       +box('data-leaf="'+esc(ns+":"+it.key)+'"',done[it.key],locked(it))
-      +'<span class="txt">'+esc(it.name)+"</span>"+sched(it)+dot([it])+"</label></li>";
-  const kid=(it,quiet)=>'<li class="'+cls("kid",it,done[it.key])+'"><label>'
+      +'<span class="txt">'+esc(it.name)+"</span>"+sched(it)+extras(it,[it])+dot([it])+"</label></li>";
+  const kid=(it,quiet)=>{
+    const more=extras(it,[it]);
+    return '<li class="'+cls("kid",it,done[it.key])+(more?" rich":"")+'"><label>'
       +box('data-leaf="'+esc(ns+":"+it.key)+'"',done[it.key],locked(it))
-      +'<span class="txt">'+esc(it.name)+"</span>"+(quiet?"":sched(it))+"</label></li>";
+      +'<span class="txt">'+esc(it.name)+"</span>"+(quiet?"":sched(it))+"</label>"
+      +(more?'<div class="more">'+more+"</div>":"")+"</li>";
+  };
   const group=h=>{
     const kids=leavesOf([h]), open=kids.filter(due);
     const n=open.filter(k=>done[k.key]).length, all=open.length>0&&n===open.length;
@@ -813,6 +869,7 @@ function renderList(elId,tree,done,ns,emptyHtml,isDue,noteFor,isFolded,isLocked,
     return '<li class="tile group'+(all?" done":"")+(open.length?"":" off")+'"><label>'
       +box('data-parent="'+esc(ns+":"+h.name)+'"',all)
       +'<span class="txt">'+esc(h.name)+"</span>"+(same?sched(kids[0]):"")+'<span class="count">'+(open.length?n+" / "+open.length:"—")+"</span></label>"
+      +(extras(h,kids)?'<div class="more">'+extras(h,kids)+"</div>":"")
       +'<ul class="chips">'+kids.map(k=>kid(k,same)).join("")+"</ul>"+dot(kids)+"</li>";
   };
   let fold=false;
@@ -862,7 +919,7 @@ function renderRuns(s){
   $("runs").innerHTML=runs.map(l=>{
     const n=runLength(l.key,s,...heldFor(l.key)), t=l.sched.n, at=slipOf(l.key,s);
     return '<button class="pgroup run'+(n>=t?" held":n?"":" zero")+(at!==null?" slipped":"")+'" data-run="'+esc(l.key)+'"'
-      +' title="'+(at!==null?"Срыв"+(at?" в "+at:"")+" — нажми, чтобы отменить":"Нажми, если сорвался")+'">'
+      +' title="'+esc((l.why?"«"+l.why+"». ":"")+(at!==null?"Срыв"+(at?" в "+at:"")+" — нажми, чтобы отменить":"Нажми, если сорвался"))+'">'
       +'<span class="rlabel">'+esc(l.name)+'</span>'
       +'<span class="pcount"><b>'+n+'</b><span class="of"> / '+t+'</span></span></button>';
   }).join("");
@@ -1033,7 +1090,10 @@ function slipRun(key){
     return saveDay(s,{slips});
   }
   const now=new Date(), today=s===iso(now);
-  if(!confirm("Срыв: «"+name+"»?\nСчёт начнётся заново"+(today?" с этого момента.":" с того дня."))) return;
+  const it=leaves().find(l=>l.key===key)||{}, b=it.bank;
+  if(!confirm("Срыв: «"+name+"»?"+(it.why?"\n\nРади чего: "+it.why:"")
+    +(b?"\nВ копилку сегодня не ляжет +"+nf(b.per)+(b.unit?" "+b.unit:"")+".":"")
+    +"\n\nСчёт дней начнётся заново"+(today?" с этого момента.":" с того дня."))) return;
   slips[key]=today?String(now.getHours()).padStart(2,"0")+":"+String(now.getMinutes()).padStart(2,"0"):"";
   saveDay(s,{slips,habits:Object.assign({},d.habits,{[key]:false})});
 }
