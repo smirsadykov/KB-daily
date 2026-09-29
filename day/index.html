@@ -290,7 +290,12 @@ ul.tiles .txt{text-decoration:none;color:inherit}
 .bar{display:block;align-self:stretch;height:4px;border-radius:4px;background:var(--surface-2);overflow:hidden}
 .bar i{display:block;height:100%;min-width:2px;background:var(--accent)}
 .kid.rich{flex-basis:100%}
-.kid .more{display:flex;flex-direction:column;gap:4px;padding:6px 4px 4px 12px}
+.tile>.more{display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:0 12px 10px}
+.tile:has(>.more)>label{height:auto;padding-bottom:8px}
+.more .link{margin-top:2px}
+button.dep{background:none;border:0;padding:0;cursor:pointer;font:inherit;font-size:12.5px;color:var(--ink-2);text-align:left}
+button.dep::before{content:"✓ ";color:var(--accent)}
+.kid .more{display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:6px 4px 4px 12px}
 .tile.group>.more{display:flex;flex-direction:column;gap:4px;padding:0 12px 8px}
 /* next steps: grouped under the project they move */
 #tasks li.sect:first-child{padding-top:0}
@@ -380,7 +385,9 @@ li.nostep .link{color:var(--warn);text-align:left}
         не отмечалось наугад с утра. Всё под <code># Здоровье</code> показывается в блоке «Здоровье».
         Строка <code>ради: …</code> под привычкой — зачем она тебе; видна на плитке и при срыве. Строка
         <code>копилка: +2000 ₽ до 4200000</code> — что откладывает каждый выполненный день (единица любая: <code>+30 мин</code>,
-        <code>+1 стр.</code>; «до …» можно не писать). Обе можно менять когда угодно — история не трогается.
+        <code>+1 стр.</code>; сумму и «до …» можно не писать). Кнопка «+ отложить» — захотел купить и не купил:
+        пишешь что и сколько, сумма ложится в копилку. У копилки может быть имя — <code>копилка Tank 300: …</code> —
+        тогда строки с одинаковым именем копят в одну. Обе можно менять когда угодно — история не трогается.
         В конце строки: <code>@пн,ср,пт</code> или <code>@mon,wed,fri</code> — по этим дням, <code>@3x</code> — три раза в неделю,
         <code>@30/30</code> — курс: 30 дней приём, 30 перерыв, от первого дня, когда отметил, <code>@30d</code> — 30 дней подряд
         без срыва, при срыве счёт начинается заново. Без хвоста привычка — каждый день.
@@ -538,7 +545,7 @@ function addHealth(text){
    a line that already has a reason or a bank is left alone. */
 function addNote(text,re,extra){
   const lines=(text||"").split("\n"), at=lines.findIndex(l=>re.test(l));
-  if(at<0||/^\s*(ради|копилка)\s*:/i.test(lines[at+1]||"")) return text;
+  if(at<0||/^\s*(ради|копилка)(\s[^:]*)?:/i.test(lines[at+1]||"")) return text;
   const pad=lines[at].match(/^\s*/)[0]+"  ";
   lines.splice(at+1,0,...extra.map(x=>pad+x));
   return lines.join("\n");
@@ -551,6 +558,9 @@ const MIGRATIONS=[
   // 2 000 ₽ a day towards a Tank 300: the freedom to drive wherever they want
   ["2026-09-29-hookah-why",t=>addNote(t,/^\s*без кальяна\s*(@\S+)?\s*$/i,["ради: Свобода ездить куда хочу","копилка: +2000 ₽ до 4200000"])],
   ["2026-09-29-porn-why",t=>addNote(t,/^\s*без порно\s*(@\S+)?\s*$/i,["ради: Энергия — в живой мир"])],
+  // what isn't spent goes to the same Tank 300 as the hookah money: one bank, by name
+  ["2026-09-29-spending-bank",t=>addNote(t.replace(/^(\s*)копилка: \+2000 ₽ до 4200000$/m,"$1копилка Tank 300: +2000 ₽ до 4200000"),
+    /^\s*без лишних трат\s*(@\S+)?\s*$/i,["копилка Tank 300: ₽"])],
 ];
 function applyMigrations(){
   const h=state.habits||{}, text=h.text!==undefined?h.text:(h.items||[]).join("\n");
@@ -626,22 +636,23 @@ function parseHeader(text){
   return {header:true,name:m[1],opens,key:"#"+m[1],kids:[]};
 }
 /* "ради: …" and "копилка: +2000 ₽ до 4200000" under a line belong to that line:
-   what it's for, and what each day it's done puts aside (any unit, the target
-   optional). Neither is part of the name, so both can be reworded any time
-   without touching history. */
+   what it's for, and what each day it's done puts aside (any unit; the amount
+   and the target optional). A named bank — "копилка Tank 300: …" — is shared by
+   every line that names it. Neither is part of the name, so both can be
+   reworded any time without touching history. */
 function parseTree(raw,scheduled){
   const out=[]; let last=null;
   (raw||"").split("\n").forEach(line=>{
     if(!line.trim()) return;
     const child=/^[\s\-•]/.test(line), text=line.replace(/^[\s\-•]+/,"").trim();
-    const attr=scheduled&&text.match(/^(ради|копилка)\s*:\s*(.+)$/i);
+    const attr=scheduled&&text.match(/^(ради|копилка)(?:\s+([^:]*?))?\s*:\s*(.*)$/i);
     if(attr){
       if(!last) return;
-      if(/^р/i.test(attr[1])) last.why=attr[2];
+      if(/^р/i.test(attr[1])){ if(attr[3]) last.why=attr[3] }
       else{
-        const m=attr[2].match(/^\+?\s*(\d[\d\s]*(?:[.,]\d+)?)\s*(.*?)(?:\s*(?:\/|до)\s*(\d[\d\s]*))?\s*$/i);
+        const m=attr[3].match(/^(?:\+?\s*(\d[\d\s]*(?:[.,]\d+)?))?\s*(.*?)(?:\s*(?:\/|до)\s*(\d[\d\s]*))?\s*$/i);
         const num=v=>+v.replace(/\s/g,"").replace(",",".");
-        if(m) last.bank={per:num(m[1]),unit:m[2],goal:m[3]?num(m[3]):null};
+        if(m) last.bank={name:attr[2]||null,per:m[1]?num(m[1]):0,unit:m[2],goal:m[3]?num(m[3]):null};
       }
       return;
     }
@@ -836,13 +847,32 @@ const habitDots=(items,s)=>dots(s,k=>{
 /* how many days a habit (or every one of a group's items) was done, ever */
 const timesDone=items=>Object.values(state.days).filter(d=>items.every(it=>(d.habits||{})[it.key])).length;
 const nf=n=>n.toLocaleString("ru-RU",{maximumFractionDigits:1});
-/* what a habit is for, and its piggy bank: each day done adds `per` */
-function extras(it,items){
+/* every habit or group with a bank, and the habits whose ticks fill it */
+const bankHolders=()=>habitTree().flatMap(h=>h.header?[]:[
+  ...(h.bank?[{it:h,items:h.kids.length?leavesOf([h]):[h]}]:[]),
+  ...h.kids.filter(k=>k.bank).map(k=>({it:k,items:[k]}))]);
+/* Money (or anything) put aside by hand: the thing wanted and not bought.
+   Kept on the day it happened, against the line it was put aside from. */
+const depositsOf=keys=>Object.keys(state.days).sort().reverse().flatMap(k=>
+  (state.days[k].deposits||[]).map((x,i)=>({src:k,i,x})).filter(e=>keys.includes(e.x.key)));
+/* a bank's total: each day done adds `per`, plus everything put aside by hand;
+   a named bank sums every line that shares its name */
+function bankTotal(it){
+  const mine=bankHolders().filter(x=>it.bank.name?x.it.bank.name===it.bank.name:x.it.key===it.key);
+  return mine.reduce((n,x)=>n+x.it.bank.per*timesDone(x.items),0)
+    +depositsOf(mine.map(x=>x.it.key)).reduce((n,e)=>n+e.x.sum,0);
+}
+/* what a habit is for, and its piggy bank */
+function extras(it){
   let h="";
   if(it.bank){
-    const b=it.bank, got=b.per*timesDone(items), pct=b.goal?Math.min(100,got/b.goal*100):0;
-    h+='<span class="bank"><b>'+nf(got)+(b.unit?" "+esc(b.unit):"")+"</b>"+(b.goal?" из "+nf(b.goal)+" · "+nf(pct)+"%":"")+"</span>"
-      +(b.goal?'<span class="bar"><i style="width:'+pct+'%"></i></span>':"");
+    const b=it.bank, got=bankTotal(it), goal=b.goal||(bankHolders().find(x=>b.name&&x.it.bank.name===b.name&&x.it.bank.goal)||{it:{bank:{}}}).it.bank.goal;
+    const pct=goal?Math.min(100,got/goal*100):0, u=b.unit?" "+esc(b.unit):"";
+    h+='<span class="bank">'+(b.name?esc(b.name)+": ":"")+"<b>"+nf(got)+u+"</b>"+(goal?" из "+nf(goal)+" · "+nf(pct)+"%":"")+"</span>"
+      +(goal?'<span class="bar"><i style="width:'+pct+'%"></i></span>':"")
+      +depositsOf([it.key]).slice(0,3).map(e=>'<button type="button" class="dep" data-undep="'+e.src+":"+e.i+'" title="Убрать из копилки">'
+        +esc(e.x.what)+" — "+nf(e.x.sum)+u+"</button>").join("")
+      +'<button type="button" class="link" data-save="'+esc(it.key)+'">+ отложить</button>';
   }
   if(it.why) h+='<span class="why">'+esc(it.why)+"</span>";
   return h;
@@ -854,9 +884,9 @@ function renderList(elId,tree,done,ns,emptyHtml,isDue,noteFor,isFolded,isLocked,
   const sched=it=>{ const n=note(it); return n?'<span class="sched">'+esc(n)+"</span>":"" };
   const leaf=it=>'<li class="'+cls("tile",it,done[it.key])+'"><label>'
       +box('data-leaf="'+esc(ns+":"+it.key)+'"',done[it.key],locked(it))
-      +'<span class="txt">'+esc(it.name)+"</span>"+sched(it)+extras(it,[it])+dot([it])+"</label></li>";
+      +'<span class="txt">'+esc(it.name)+"</span>"+sched(it)+dot([it])+"</label>"+(it.bank||it.why?'<div class="more">'+extras(it)+"</div>":"")+"</li>";
   const kid=(it,quiet)=>{
-    const more=extras(it,[it]);
+    const more=extras(it);
     return '<li class="'+cls("kid",it,done[it.key])+(more?" rich":"")+'"><label>'
       +box('data-leaf="'+esc(ns+":"+it.key)+'"',done[it.key],locked(it))
       +'<span class="txt">'+esc(it.name)+"</span>"+(quiet?"":sched(it))+"</label>"
@@ -870,7 +900,7 @@ function renderList(elId,tree,done,ns,emptyHtml,isDue,noteFor,isFolded,isLocked,
     return '<li class="tile group'+(all?" done":"")+(open.length?"":" off")+'"><label>'
       +box('data-parent="'+esc(ns+":"+h.name)+'"',all)
       +'<span class="txt">'+esc(h.name)+"</span>"+(same?sched(kids[0]):"")+'<span class="count">'+(open.length?n+" / "+open.length:"—")+"</span></label>"
-      +(extras(h,kids)?'<div class="more">'+extras(h,kids)+"</div>":"")
+      +(h.bank||h.why?'<div class="more">'+extras(h)+"</div>":"")
       +'<ul class="chips">'+kids.map(k=>kid(k,same)).join("")+"</ul>"+dot(kids)+"</li>";
   };
   let fold=false;
@@ -1068,7 +1098,13 @@ document.addEventListener("change",e=>{
   else if(t.dataset.status!==undefined) saveProjects((state.projects.items||[]).map(p=>p.id===t.dataset.status?Object.assign({},p,{status:t.value}):p));
 });
 document.addEventListener("click",e=>{
-  const b=e.target.closest("[data-deltask],[data-delproj],[data-day],[data-sect],[data-run],[data-step]"); if(!b) return;
+  const b=e.target.closest("[data-deltask],[data-delproj],[data-day],[data-sect],[data-run],[data-step],[data-save],[data-undep]"); if(!b) return;
+  if(b.dataset.save!==undefined) return deposit(b.dataset.save);
+  if(b.dataset.undep!==undefined){
+    const [src,i]=taskRef(b.dataset.undep), x=(day(src).deposits||[])[i];
+    if(x&&confirm("Убрать из копилки: «"+x.what+"» — "+nf(x.sum)+"?")) saveDay(src,{deposits:day(src).deposits.filter((_,j)=>j!==i)});
+    return;
+  }
   if(b.dataset.step!==undefined){ $("taskproj").value=b.dataset.step; return $("tasktext").focus() }
   if(b.dataset.sect!==undefined){ state.openSects[b.dataset.sect]=true; return renderHabits() }
   if(b.dataset.run!==undefined) return slipRun(b.dataset.run);
@@ -1093,12 +1129,24 @@ function slipRun(key){
   const now=new Date(), today=s===iso(now);
   const it=leaves().find(l=>l.key===key)||{}, b=it.bank;
   if(!confirm("Срыв: «"+name+"»?"+(it.why?"\n\nРади чего: "+it.why:"")
-    +(b?"\nВ копилку сегодня не ляжет +"+nf(b.per)+(b.unit?" "+b.unit:"")+".":"")
+    +(b&&b.per?"\nВ копилку сегодня не ляжет +"+nf(b.per)+(b.unit?" "+b.unit:"")+".":"")
     +"\n\nСчёт дней начнётся заново"+(today?" с этого момента.":" с того дня."))) return;
   slips[key]=today?String(now.getHours()).padStart(2,"0")+":"+String(now.getMinutes()).padStart(2,"0"):"";
   saveDay(s,{slips,habits:Object.assign({},d.habits,{[key]:false})});
 }
 
+/* Wanted something, didn't buy it: say what and how much, and the sum goes into
+   that line's bank. The app can only count it — the transfer is the owner's. */
+function deposit(key){
+  const it=bankHolders().map(x=>x.it).find(x=>x.key===key); if(!it) return;
+  const v=prompt("Что хотел купить и сколько стоит?\nНапример: часы 15000"); if(!v) return;
+  const m=v.trim().match(/^(.*?)\s*(\d[\d\s]*(?:[.,]\d+)?)\s*(?:₽|р\.?|руб\.?)?$/i);
+  const sum=m?+m[2].replace(/\s/g,"").replace(",","."):0;
+  if(!sum) return alert("Не вижу суммы. Напиши так: часы 15000");
+  const what=m[1].trim()||"без названия", s=state.date;
+  saveDay(s,{deposits:(day(s).deposits||[]).concat([{key,what,sum}])});
+  alert("Отложено: "+what+" — "+nf(sum)+(it.bank.unit?" "+it.bank.unit:"")+".\nПереведи эту сумму на счёт копилки — тогда она настоящая.");
+}
 function saveProjects(items){ state.projects={items}; put("config/projects",state.projects); render(); }
 
 $("taskform").onsubmit=e=>{

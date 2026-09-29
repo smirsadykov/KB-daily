@@ -47,7 +47,11 @@ Two kinds of line under a habit describe it rather than being habits themselves:
     копилка: +2000 ₽ до 4200000           each day done puts this aside; any unit, target optional
 ```
 
-Neither is part of the habit's name, so both can be reworded any time.
+Neither is part of the habit's name, so both can be reworded any time. The amount
+and the target are optional, and a bank can have a name — `копилка Tank 300: …` —
+which every line naming it shares. **+ отложить** under a bank is for the thing you
+wanted and didn't buy: say what and how much, and the sum goes in (tap an entry to
+take it back out). The app only counts; moving the money is yours to do.
 
 A line starting with `#` is a **section heading**. Give it an hour (`# Evening @18`)
 and, on today, the habits under it stay folded into one line until then — whether
