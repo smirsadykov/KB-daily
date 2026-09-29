@@ -12,7 +12,7 @@ Static files, no build step, no dependencies. Installable as a PWA and works off
 | Block | What it does |
 |---|---|
 | Affirmation | A standing line across the top of every day |
-| Health | Гиря's status for the day, BJJ, and the habits under `# Здоровье` (vitamins) |
+| Health | Гиря's status for the day, BJJ (positions worked and a line on what you drilled; before class, what last time was about), and the habits under `# Здоровье` (vitamins) |
 | Habits | Tiles with the last seven days as dots, morning and evening sections, per-habit schedules, skippable days |
 | Next steps | One concrete step per project in work, carried until ticked; a project without one is flagged |
 | Projects | Status (Active / On hold / Done), open count, last touched |

@@ -371,6 +371,16 @@ form.add input[type=text]:focus{outline:none;border-color:var(--hue,var(--accent
 form.add select.chip{padding:0 12px;font-size:12px}
 form.add .btn{border-radius:12px;min-height:44px;padding:0 18px;background:var(--hue,var(--accent));color:var(--on-hue)}
 .quiet form.add .btn{color:var(--on-accent)}
+/* BJJ: what the class was about */
+.tags{display:flex;flex-wrap:wrap;gap:6px}
+.tag{border:0;border-radius:100px;padding:6px 12px;font:inherit;font-size:13px;cursor:pointer;
+  background:color-mix(in srgb,var(--ink) 10%,transparent);color:inherit}
+.tile.done .tag{background:rgba(0,0,0,.18)}
+.tile.done .tag.on{background:var(--on-hue);color:var(--hue)}
+.tile input.note{width:100%;min-height:42px;border:0;border-radius:10px;padding:9px 12px;margin-top:4px;
+  background:rgba(0,0,0,.18);color:inherit;font-size:15px}
+.tile input.note::placeholder{color:inherit;opacity:.65}
+.tile input.note:focus{outline:2px solid var(--on-hue);outline-offset:0}
 </style>
 </head>
 <body>
@@ -1097,10 +1107,25 @@ function renderHabits(){
   renderList("habits",rest,done,"h",'<li class="empty">Привычек пока нет — добавь в <b>Настройке</b>.</li>',...args);
   // Health: BJJ, ticked by hand since it happens away from the app, then the "# Здоровье" habits
   renderList("health",health,done,"h","",...args);
-  const bjj=!!(d.workout||{}).BJJ;
-  $("health").insertAdjacentHTML("afterbegin",'<li class="tile'+(bjj?" done":"")+'"><label>'
-    +'<input type="checkbox" data-bjj'+(bjj?" checked":"")+'><span class="txt">БЖЖ</span>'
-    +dots(s,k=>!!(day(k).workout||{}).BJJ)+"</label></li>");
+  $("health").insertAdjacentHTML("afterbegin",bjjTile(s,d));
+}
+/* BJJ: ticked, then what the class was about — a few positions to tap and one
+   line for what you worked on. Before it's ticked, the tile shows what last
+   time was about, so you walk in knowing what to pick up. */
+const BJJ_TAGS=["Стойка","Гард","Пасы","Маунт","Сайд","Спина","Ноги","Спарринг"];
+const bjjText=b=>[...(b.tags||[]),b.note].filter(Boolean).join(" · ");
+function bjjTile(s,d){
+  const on=!!(d.workout||{}).BJJ, b=d.bjj||{};
+  let more="";
+  if(on) more='<div class="tags">'+BJJ_TAGS.map(t=>'<button type="button" class="tag'+((b.tags||[]).includes(t)?" on":"")+'" data-bjjtag="'+t+'">'+t+"</button>").join("")+"</div>"
+    +'<input type="text" class="note" data-bjjnote placeholder="Над чем работал" value="'+esc(b.note||"")+'" autocomplete="off">';
+  else{
+    const prev=Object.keys(state.days).filter(k=>k<s&&bjjText(state.days[k].bjj||{})).sort().pop();
+    if(prev) more='<span class="why">Прошлый раз, '+parseDate(prev).toLocaleDateString("ru-RU",{day:"numeric",month:"short"})+": "+esc(bjjText(state.days[prev].bjj))+"</span>";
+  }
+  return '<li class="tile'+(on?" done":"")+'"><label>'
+    +'<input type="checkbox" data-bjj'+(on?" checked":"")+'><span class="txt">БЖЖ</span>'
+    +dots(s,k=>!!(day(k).workout||{}).BJJ)+"</label>"+(more?'<div class="more">'+more+"</div>":"")+"</li>";
 }
 
 /* Training lives in Гиря's own tabs; this page only asks the host what a day
@@ -1200,12 +1225,17 @@ document.addEventListener("change",e=>{
       .forEach(k=>next[k.key]=t.checked);
     saveDay(s,{[f]:next});
   }
+  else if(t.dataset.bjjnote!==undefined) saveDay(s,{bjj:Object.assign({},d.bjj,{note:t.value.trim()})});
   else if(t.dataset.bjj!==undefined) saveDay(s,{workout:Object.assign({},d.workout,{BJJ:t.checked})});   // the old Workout block's key: its days still count
   else if(t.dataset.task!==undefined) patchTask(t.dataset.task,{done:t.checked,doneOn:t.checked?s:null});
   else if(t.dataset.status!==undefined) saveProjects((state.projects.items||[]).map(p=>p.id===t.dataset.status?Object.assign({},p,{status:t.value}):p));
 });
 document.addEventListener("click",e=>{
-  const b=e.target.closest("[data-deltask],[data-delproj],[data-day],[data-sect],[data-run],[data-step],[data-save],[data-undep]"); if(!b) return;
+  const b=e.target.closest("[data-deltask],[data-delproj],[data-day],[data-sect],[data-run],[data-step],[data-save],[data-undep],[data-bjjtag]"); if(!b) return;
+  if(b.dataset.bjjtag!==undefined){
+    const s=state.date, bj=day(s).bjj||{}, tags=bj.tags||[], t=b.dataset.bjjtag;
+    return saveDay(s,{bjj:Object.assign({},bj,{tags:tags.includes(t)?tags.filter(x=>x!==t):tags.concat([t])})});
+  }
   if(b.dataset.save!==undefined) return deposit(b.dataset.save);
   if(b.dataset.undep!==undefined){
     const [src,i]=taskRef(b.dataset.undep), x=(day(src).deposits||[])[i];
